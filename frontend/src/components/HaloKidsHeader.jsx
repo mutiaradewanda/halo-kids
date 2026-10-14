@@ -124,7 +124,7 @@ const INITIAL_GUEST_NOTIFICATIONS = [
 
 export default function HaloKidsHeader({
   isLoggedIn = false,
-  currentUser = { name: 'Ahmad Rifai', role: 'Warga Terverifikasi' },
+  currentUser = { name: 'Warga', role: 'Warga Terverifikasi' },
   activeTab = 'beranda',
   onSelectTab = () => {},
   onOpenLacak = () => {},
@@ -418,9 +418,9 @@ export default function HaloKidsHeader({
                 className="flex items-center gap-2 pl-2 pr-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-full text-xs font-bold transition-colors cursor-pointer"
               >
                 <div className="w-6 h-6 rounded-full bg-blue-700 text-white flex items-center justify-center font-bold text-[11px]">
-                  {currentUser?.name ? currentUser.name.charAt(0) : 'A'}
+                  {currentUser?.name ? currentUser.name.trim().charAt(0).toUpperCase() : 'W'}
                 </div>
-                <span className="max-w-[100px] truncate">{currentUser?.name || 'Ahmad Rifai'}</span>
+                <span className="max-w-[100px] truncate">{currentUser?.name || 'Warga'}</span>
                 <ChevronDown size={12} className="text-blue-700" />
               </button>
 
@@ -429,7 +429,7 @@ export default function HaloKidsHeader({
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50">
                   <div className="px-3 py-2 border-b border-slate-100">
                     <p className="text-xs font-bold text-slate-900 truncate">
-                      {currentUser?.name || 'Ahmad Rifai'}
+                      {currentUser?.name || 'Warga'}
                     </p>
                     <p className="text-[10px] text-slate-500">
                       {currentUser?.role || 'Warga Terverifikasi'}

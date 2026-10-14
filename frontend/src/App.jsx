@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import LandingPage from './views/LandingPage';
 import DashboardUtama from './views/DashboardUtama';
 import FormulirPengaduanView from './views/FormulirPengaduanView';
@@ -9,6 +9,8 @@ import VolunteerRegistrationView from './views/VolunteerRegistrationView';
 import Navbar from './components/Navbar';
 import UserSidebar from './components/UserSidebar';
 import UserHeader from './components/UserHeader';
+import MobileBottomNav from './components/MobileBottomNav';
+import { authService } from './api';
 
 // Modals
 import LaporModal from './components/Modals/LaporModal';
@@ -18,6 +20,7 @@ import LoginModal from './components/Modals/LoginModal';
 import PantiDetailModal from './components/Modals/PantiDetailModal';
 import AdopsiModal from './components/Modals/AdopsiModal';
 import MapModal from './components/Modals/MapModal';
+import AiAssistant from './components/AiAssistant';
 
 export default function App() {
   // Requirement 1: Default to 'landing' (Beranda) or dashboard if saved session is admin
@@ -121,9 +124,23 @@ export default function App() {
   const [selectedPanti, setSelectedPanti] = useState(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // Listen to 401 Unauthorized globally from apiClient interceptor
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      setIsLoginOpen(true);
+    };
+
+    window.addEventListener('halokids:auth_expired', handleAuthExpired);
+    return () => {
+      window.removeEventListener('halokids:auth_expired', handleAuthExpired);
+    };
+  }, []);
+
   const handleLoginSuccess = (user) => {
     setIsLoggedIn(true);
-    const loggedUser = user || { name: 'Ahmad Rifai', role: 'User Publik', email: 'ahmad@gmail.com' };
+    const loggedUser = user || { name: 'Warga', role: 'User Publik', email: 'warga@gmail.com' };
     setCurrentUser(loggedUser);
     try {
       localStorage.setItem('halokids_active_session', JSON.stringify(loggedUser));
@@ -131,16 +148,12 @@ export default function App() {
       console.error(e);
     }
 
-    // Auto redirect based on role:
-    if (loggedUser.role === 'Admin Panti' || loggedUser.role === 'Super Admin') {
-      setViewMode('dashboard');
-    } else {
-      setViewMode('landing');
-      setActiveTab('beranda');
-    }
+    // Auto redirect based on role (masyarakat, pengelola panti, super admin -> dashboard sesuai mode):
+    setViewMode('dashboard');
   };
 
   const handleLogout = () => {
+    authService.logout();
     setIsLoggedIn(false);
     setCurrentUser(null);
     try {
@@ -299,6 +312,7 @@ export default function App() {
             onSwitchToPanti={() => { setViewMode('panti'); setActiveTab('panti'); }}
             onSwitchToDonasi={() => { setViewMode('donasi'); setActiveTab('donasi'); }}
             onSwitchToAdopsi={() => { setViewMode('adopsi'); setActiveTab('adopsi'); }}
+            onSwitchToVolunteer={() => { setViewMode('volunteer'); setActiveTab('volunteer'); }}
             onOpenLapor={() => { setViewMode('pengaduan'); setActiveTab('pengaduan'); }}
             onOpenLacak={() => setIsLacakOpen(true)}
             onOpenHotline={() => setIsHotlineOpen(true)}
@@ -347,9 +361,20 @@ export default function App() {
             onOpenLacak={() => setIsLacakOpen(true)}
           />
 
-          <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }} className="pb-16 lg:pb-0">
             {renderCurrentView()}
           </main>
+
+          {/* MOBILE BOTTOM NAVIGATION BAR UNTUK PENGUNJUNG SEBELUM LOGIN */}
+          <MobileBottomNav 
+            activeTab={activeTab}
+            viewMode={viewMode}
+            onNavigate={(newMode, newTab) => {
+              setViewMode(newMode);
+              setActiveTab(newTab);
+            }}
+            onToggleSidebar={() => setIsLoginOpen(true)}
+          />
         </div>
       ) : (
         /* SETELAH LOGIN: HALAMAN USER PUBLIK DENGAN SIDE BAR */
@@ -383,12 +408,27 @@ export default function App() {
               currentUser={currentUser}
               onOpenLogin={() => setIsLoginOpen(true)}
               onOpenLacak={() => setIsLacakOpen(true)}
+              onNavigateTab={(tab) => {
+                setViewMode(tab === 'beranda' ? 'landing' : tab);
+                setActiveTab(tab);
+              }}
             />
 
-            {/* DYNAMIC USER VIEW */}
-            <main className="flex-1 flex flex-col min-w-0">
+            {/* DYNAMIC USER VIEW DENGAN PADDING BOTTOM DI MOBILE UNTUK BOTTOM BAR */}
+            <main className="flex-1 flex flex-col min-w-0 pb-16 lg:pb-0">
               {renderCurrentView()}
             </main>
+
+            {/* MOBILE BOTTOM NAVIGATION BAR UNTUK WARGA SETELAH LOGIN */}
+            <MobileBottomNav 
+              activeTab={activeTab}
+              viewMode={viewMode}
+              onNavigate={(newMode, newTab) => {
+                setViewMode(newMode);
+                setActiveTab(newTab);
+              }}
+              onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+            />
           </div>
         </div>
       )}
@@ -432,6 +472,14 @@ export default function App() {
       <MapModal 
         isOpen={isMapOpen}
         onClose={() => setIsMapOpen(false)}
+      />
+
+      {/* Floating Single-Agent AI Assistant & Verification Hub */}
+      <AiAssistant 
+        isLoggedIn={isLoggedIn}
+        currentUser={currentUser}
+        onOpenAdopsi={() => setIsAdopsiOpen(true)}
+        onOpenLapor={() => setIsLaporOpen(true)}
       />
 
     </div>

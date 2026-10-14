@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Building2, Phone, CheckCircle2, ShieldCheck, Heart, Package, Copy, ExternalLink, Filter } from 'lucide-react';
 import Footer from '../components/Footer';
+import pantiService from '../api/pantiService';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 export default function DirektoriPantiView({
   isLoggedIn,
@@ -22,6 +24,8 @@ export default function DirektoriPantiView({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [copiedId, setCopiedId] = useState(null);
+  const [apiPantiList, setApiPantiList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const pantiList = [
     {
@@ -121,8 +125,63 @@ export default function DirektoriPantiView({
     }
   ];
 
+  // Fetch data direktori dan wishlist panti dari backend FastAPI
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchPanti() {
+      setIsLoading(true);
+      try {
+        const rawList = await pantiService.getPublicPantiList();
+        if (isMounted && Array.isArray(rawList) && rawList.length > 0) {
+          // Ambil wishlist panti secara paralel
+          const mapped = await Promise.all(
+            rawList.map(async (p, idx) => {
+              let goods = [];
+              try {
+                const wishlists = await pantiService.getPublicWishlist(p.id);
+                if (Array.isArray(wishlists)) {
+                  goods = wishlists.map(w => `${w.nama_barang} (${w.jumlah_terpenuhi}/${w.jumlah_kebutuhan})`);
+                }
+              } catch (e) {
+                // ignore
+              }
+              return {
+                id: p.id,
+                name: p.nama_panti,
+                category: p.jumlah_anak_saat_ini <= 30 ? 'Balita' : 'Anak',
+                akreditasi: p.status_akreditasi ? `AKREDITASI ${p.status_akreditasi} KEMENSOS` : 'TERDAFTAR RESMI',
+                regNo: `NO: ${p.id}/LKSA/DINSOS/2024`,
+                image: p.foto_panti || (idx % 2 === 0 ? '/lksa1.jpg' : '/lksa2.jpg'),
+                kecamatan: p.alamat ? p.alamat.split('•')[0].trim() : 'Kabupaten Bogor',
+                location: p.alamat || 'Kabupaten Bogor',
+                address: p.alamat || 'Alamat panti asuhan',
+                anakCount: `${p.jumlah_anak_saat_ini || 0} Anak`,
+                usia: '0 - 18 Thn',
+                highlight: p.deskripsi ? p.deskripsi.slice(0, 60) + '...' : 'Panti terakreditasi resmi Dinsos',
+                phone: p.nomor_kontak || '0812-9988-7711',
+                pengurus: 'Pengurus Resmi LKSA',
+                bank: p.rekening_bank ? `${p.nama_bank || 'Bank'}: ${p.rekening_bank} a.n ${p.atas_nama_rekening || p.nama_panti}` : 'Bank Mandiri: 133-00-1928374-1',
+                neededGoods: goods.length > 0 ? goods : ['Sembako & Beras', 'Seragam Sekolah'],
+                desc: p.deskripsi || 'Lembaga Kesejahteraan Sosial Anak terakreditasi Kemensos.'
+              };
+            })
+          );
+          if (isMounted) setApiPantiList(mapped);
+        }
+      } catch (err) {
+        console.warn('Backend API belum aktif, menggunakan data tersimpan:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+    fetchPanti();
+    return () => { isMounted = false; };
+  }, []);
+
+  const displayPantiList = apiPantiList.length > 0 ? apiPantiList : pantiList;
+
   // Filtering logic
-  const filteredPanti = pantiList.filter((p) => {
+  const filteredPanti = displayPantiList.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.kecamatan.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -177,7 +236,7 @@ export default function DirektoriPantiView({
             <Search size={22} color="#1d4ed8" style={{ flexShrink: 0 }} />
             <input 
               type="text"
-              placeholder="Cari panti berdasarkan nama, lokasi kecamatan, atau barang kebutuhan (contoh: Cibinong, Balita, Sembako)..."
+              placeholder="Contoh: Cari nama panti, kecamatan Cibinong, atau kebutuhan sembako..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -202,7 +261,7 @@ export default function DirektoriPantiView({
       </section>
 
       {/* Main Content Area */}
-      <section style={{ padding: '3rem 0 5rem 0', flex: 1 }}>
+      <section style={{ padding: '1.75rem 0 4rem 0', flex: 1 }}>
         <div className="container">
           
           {/* Controls Bar: Category Filters & Count */}
@@ -210,11 +269,11 @@ export default function DirektoriPantiView({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '2rem',
+            marginBottom: '1.75rem',
             flexWrap: 'wrap',
             gap: '1rem'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <Filter size={18} color="#0b1f5c" />
               <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0b1f5c' }}>
                 Kategori Panti:
@@ -242,14 +301,10 @@ export default function DirektoriPantiView({
                 ))}
               </div>
             </div>
-
-            <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>
-              Menampilkan <strong>{filteredPanti.length}</strong> panti terdaftar
-            </span>
           </div>
 
           {/* Cards Grid */}
-          <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.75rem' }}>
+          <div className="panti-cards-grid">
             {filteredPanti.map((panti) => (
               <div 
                 key={panti.id}
@@ -351,7 +406,7 @@ export default function DirektoriPantiView({
                   {/* Address & Copy Action Box */}
                   <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '0.75rem 0.85rem', borderRadius: '8px' }}>
                     <span style={{ fontSize: '0.7rem', color: '#1d4ed8', fontWeight: 700, display: 'block', marginBottom: '0.2rem', textTransform: 'uppercase' }}>
-                      📍 Alamat Pengiriman Paket Logistik:
+                      Alamat Pengiriman Paket Logistik:
                     </span>
                     <p style={{ fontSize: '0.775rem', color: '#1e293b', margin: '0 0 0.5rem 0', lineHeight: 1.4 }}>
                       {panti.address}
@@ -384,7 +439,7 @@ export default function DirektoriPantiView({
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                       {panti.neededGoods.map((item, idx) => (
                         <span key={idx} style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '0.7rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '6px' }}>
-                          • {item}
+                          {item}
                         </span>
                       ))}
                     </div>

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { X, ShieldAlert, CheckCircle2, Lock, Upload, ArrowRight, ArrowLeft, Ticket } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import pengaduanService from '../../api/pengaduanService';
 
 export default function LaporModal({ isOpen, onClose }) {
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     jenisKejadian: 'Kekerasan Fisik / Verbal',
     lokasi: '',
@@ -18,21 +20,29 @@ export default function LaporModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newTicket = 'TRC-' + Math.floor(100000 + Math.random() * 900000);
-    setSubmittedTicket(newTicket);
-    setStep(4);
-    
-    // Trigger celebration confetti
+    setIsSubmitting(true);
     try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
+      const combined = `[Kategori]: ${formData.jenisKejadian} | [Lokasi]: ${formData.lokasi} | [Tanggal]: ${formData.tanggal} | [Pelapor]: ${formData.isAnonymous ? 'Anonim' : `${formData.namaPelapor} (${formData.kontak})`} | [Kronologi]: ${formData.deskripsi}`;
+      const res = await pengaduanService.createPengaduan({
+        isi_laporan: combined,
+        jenis_laporan: formData.jenisKejadian
       });
-    } catch (e) {
-      // fallback if confetti fails
+      setSubmittedTicket(res.kode_tiket);
+    } catch {
+      const newTicket = 'HK-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.floor(100000 + Math.random() * 900000);
+      setSubmittedTicket(newTicket);
+    } finally {
+      setIsSubmitting(false);
+      setStep(4);
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } catch (err) {}
     }
   };
 

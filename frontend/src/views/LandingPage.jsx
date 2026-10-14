@@ -3,6 +3,7 @@ import HeroSection from '../components/HeroSection';
 import QuickActions from '../components/QuickActions';
 import OrphanageDirectory from '../components/OrphanageDirectory';
 import Footer from '../components/Footer';
+import DashboardPersonalWarga from '../components/DashboardPersonalWarga';
 
 export default function LandingPage({
   isLoggedIn,
@@ -14,6 +15,7 @@ export default function LandingPage({
   onSwitchToPanti,
   onSwitchToDonasi,
   onSwitchToAdopsi,
+  onSwitchToVolunteer,
   onOpenLapor,
   onOpenLacak,
   onOpenHotline,
@@ -24,9 +26,28 @@ export default function LandingPage({
   activeTab,
   setActiveTab
 }) {
+  // Jika pengguna sudah login sebagai User/Warga, tampilkan Dashboard Personal Warga
+  if (isLoggedIn) {
+    return (
+      <DashboardPersonalWarga
+        currentUser={currentUser}
+        onSwitchToPengaduan={onSwitchToPengaduan}
+        onSwitchToAdopsi={onSwitchToAdopsi}
+        onSwitchToDonasi={onSwitchToDonasi}
+        onSwitchToVolunteer={onSwitchToVolunteer}
+        onSwitchToPanti={onSwitchToPanti}
+        onOpenLapor={onOpenLapor}
+        onOpenLacak={onOpenLacak}
+        onOpenAdopsi={onOpenAdopsi}
+        onOpenHotline={onOpenHotline}
+        onSelectPanti={onSelectPanti}
+      />
+    );
+  }
+
+  // Tampilan landing page promosi umum untuk pengunjung publik (belum login)
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-
 
       {/* 3. Hero Section (Informasi Singkat Layanan Dinsos) */}
       <HeroSection 
@@ -59,3 +80,4 @@ export default function LandingPage({
     </div>
   );
 }
+

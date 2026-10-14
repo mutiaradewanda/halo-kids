@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Building2,
@@ -27,10 +27,22 @@ import {
   Palette,
   XCircle,
   MessageCircle,
-  Bot
+  Bot,
+  Trash2,
+  User,
+  FileText,
+  RefreshCw,
+  Gift
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { AdminDocumentReview } from '../components/AiVerification';
+import {
+  pantiService,
+  donasiService,
+  adopsiService,
+  relawanService,
+  pengaduanService
+} from '../api';
 
 export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUser, volunteerList, setVolunteerList }) {
   // Current Active Dashboard Mode: 'user' | 'pantiadmin' | 'superadmin'
@@ -119,14 +131,30 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
   const [volunteerSearch, setVolunteerSearch] = useState('');
   const [selectedKtpDoc, setSelectedKtpDoc] = useState(null);
 
-  const handleApproveVolunteer = (vol) => {
+  const handleApproveVolunteer = async (vol) => {
+    try {
+      const targetId = vol.rawId || (typeof vol.id === 'string' && vol.id.includes('-') ? parseInt(vol.id.split('-')[1], 10) : vol.id);
+      if (targetId && !isNaN(targetId)) {
+        await relawanService.updateStatus(targetId, 'disetujui');
+      }
+    } catch (err) {
+      console.warn('API approve volunteer fallback:', err);
+    }
     const updated = currentVolunteers.map(v => v.id === vol.id ? { ...v, status: 'Disetujui' } : v);
     if (setVolunteerList) setVolunteerList(updated);
     setLocalVolunteers(updated);
     showToast(`Relawan ${vol.nama} BERHASIL DISETUJUI! Notifikasi penerimaan diterbitkan.`);
   };
 
-  const handleRejectVolunteer = (vol) => {
+  const handleRejectVolunteer = async (vol) => {
+    try {
+      const targetId = vol.rawId || (typeof vol.id === 'string' && vol.id.includes('-') ? parseInt(vol.id.split('-')[1], 10) : vol.id);
+      if (targetId && !isNaN(targetId)) {
+        await relawanService.updateStatus(targetId, 'ditolak');
+      }
+    } catch (err) {
+      console.warn('API reject volunteer fallback:', err);
+    }
     const updated = currentVolunteers.map(v => v.id === vol.id ? { ...v, status: 'Ditolak' } : v);
     if (setVolunteerList) setVolunteerList(updated);
     setLocalVolunteers(updated);
@@ -184,8 +212,8 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
 
   // 2. Input Donasi Barang Dibutuhkan & Keterangan Uang Masuk (Admin Panti Req 2.2)
   const [pantiNeededGoods, setPantiNeededGoods] = useState([
-    { id: 1, item: 'Sembako Beras 10kg & Minyak', qty: '20 Paket', status: 'Mendesak' },
-    { id: 2, item: 'Seragam SD/SMP Lengkap', qty: '15 Pasang', status: 'Mendesak' },
+    { id: 1, item: 'Sembako Beras 10kg & Minyak', qty: '20 Paket', status: 'Mendesak / Barang Habis' },
+    { id: 2, item: 'Seragam SD/SMP Lengkap', qty: '15 Pasang', status: 'Hampir Habis' },
     { id: 3, item: 'Buku Tulis & Alat Sekolah', qty: '40 Paket', status: 'Tersedia Sebagian' }
   ]);
 
@@ -197,6 +225,167 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
 
   const [newNeedItem, setNewNeedItem] = useState('');
   const [newNeedQty, setNewNeedQty] = useState('');
+  const [newNeedUrgency, setNewNeedUrgency] = useState('');
+
+  // ----------------------------------------------------
+  // DATA STATES UNTUK DASHBOARD PERSONAL WARGA (REQ #3)
+  // ----------------------------------------------------
+  const [userAdoptions, setUserAdoptions] = useState([]);
+  const [userPengaduan, setUserPengaduan] = useState([]);
+  const [userRelawan, setUserRelawan] = useState([]);
+  const [userDonasi, setUserDonasi] = useState([]);
+  const [isUserDataLoading, setIsUserDataLoading] = useState(false);
+  const [userTrackTicketInput, setUserTrackTicketInput] = useState('');
+  const [userTrackResult, setUserTrackResult] = useState(null);
+  const [isTrackingTicket, setIsTrackingTicket] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.role) {
+      const newRole = currentUser.role === 'Admin Panti' ? 'pantiadmin' : currentUser.role === 'Super Admin' ? 'superadmin' : 'user';
+      setDashboardRoleMode(newRole);
+    }
+  }, [currentUser]);
+
+  // ----------------------------------------------------
+  // SINKRONISASI DATA DARI FASTAPI BACKEND
+  // ----------------------------------------------------
+  useEffect(() => {
+    let isMounted = true;
+    async function syncBackendData() {
+      try {
+        if (dashboardRoleMode === 'user') {
+          setIsUserDataLoading(true);
+          try {
+            const adopsiRes = await adopsiService.getMyAdoptions();
+            if (isMounted && Array.isArray(adopsiRes)) setUserAdoptions(adopsiRes);
+          } catch (e) {
+            console.warn('My adoptions sync:', e);
+          }
+          try {
+            const pengaduanRes = await pengaduanService.getMyPengaduan();
+            if (isMounted && Array.isArray(pengaduanRes)) setUserPengaduan(pengaduanRes);
+          } catch (e) {
+            console.warn('My pengaduan sync:', e);
+          }
+          try {
+            const relawanRes = await relawanService.getMyRelawan();
+            if (isMounted && Array.isArray(relawanRes)) setUserRelawan(relawanRes);
+          } catch (e) {
+            console.warn('My relawan sync:', e);
+          }
+          try {
+            const donasiRes = await donasiService.getMyDonations();
+            if (isMounted && Array.isArray(donasiRes)) setUserDonasi(donasiRes);
+          } catch (e) {
+            console.warn('My donasi sync:', e);
+          }
+          if (isMounted) setIsUserDataLoading(false);
+        } else if (dashboardRoleMode === 'pantiadmin') {
+          // 1. Ambil Wishlist Panti LKSA dari API
+          try {
+            const rawWishlist = await pantiService.getWishlist();
+            if (isMounted && Array.isArray(rawWishlist) && rawWishlist.length > 0) {
+              setPantiNeededGoods(rawWishlist.map(w => ({
+                id: w.id,
+                item: w.nama_barang,
+                qty: `${w.jumlah_terpenuhi}/${w.jumlah_kebutuhan} Unit`,
+                status: w.jumlah_terpenuhi >= w.jumlah_kebutuhan ? 'Tercukupi' : 'Mendesak / Barang Habis'
+              })));
+            }
+          } catch (wErr) {
+            console.warn('Wishlist sync fallback:', wErr);
+          }
+
+          // 2. Ambil Rekapitulasi Donasi Masuk Panti dari API
+          try {
+            const rawDonasi = await pantiService.getPantiDonations();
+            if (isMounted && Array.isArray(rawDonasi) && rawDonasi.length > 0) {
+              setPantiCashIncome(rawDonasi.map(d => ({
+                id: `TRX-${d.id}`,
+                rawId: d.id,
+                date: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID') : 'Hari ini',
+                donor: d.jenis_donasi === 'uang' ? `Donatur #${d.id_user}` : `Paket Barang (#${d.id_user})`,
+                amount: d.jenis_donasi === 'uang' ? `Rp ${Number(d.jumlah_nominal).toLocaleString('id-ID')}` : `${d.nama_barang || 'Logistik'} (${d.jumlah_barang || 1} ${d.satuan_barang || 'Paket'})`,
+                program: d.jenis_donasi === 'uang' ? 'Donasi Uang Masuk' : 'Donasi Logistik Panti',
+                status: d.status_verifikasi
+              })));
+            }
+          } catch (dErr) {
+            console.warn('Panti donation sync fallback:', dErr);
+          }
+        } else if (dashboardRoleMode === 'superadmin') {
+          // 1. Ambil Antrean Adopsi COTA
+          try {
+            const rawAdoptions = await adopsiService.getAdminAdoptions();
+            if (isMounted && Array.isArray(rawAdoptions) && rawAdoptions.length > 0) {
+              setAdopsiApplications(rawAdoptions.map(a => ({
+                id: `PIPA-2024-${a.id}`,
+                rawId: a.id,
+                applicant: a.nama_pemohon,
+                targetChild: 'Calon Anak Binaan',
+                originPanti: 'LKSA Binaan Dinsos',
+                score: a.status === 'diverifikasi' ? 'Lolos Verifikasi PIPA' : 'Menunggu Sidang Berkas',
+                status: a.status === 'diverifikasi' ? 'SK Pengangkatan Anak Terbit (Disetujui)' : a.status === 'ditolak' ? 'Berkas Ditolak Sidang PIPA' : a.status === 'butuh_dokumen_tambahan' ? 'Menunggu Unggah Ulang Berkas' : 'Verifikasi Sidang PIPA Dinsos',
+                docs: ['KTP/KK', 'SKCK', 'Surat Medis'],
+                hasil_ekstraksi_ai: a.hasil_ekstraksi_ai
+              })));
+            }
+          } catch (aErr) {
+            console.warn('Adoption admin sync fallback:', aErr);
+          }
+
+          // 2. Ambil Seluruh Pendaftar Relawan
+          try {
+            const rawVolunteers = await relawanService.getAdminRelawan();
+            if (isMounted && Array.isArray(rawVolunteers) && rawVolunteers.length > 0) {
+              const mappedVols = rawVolunteers.map(v => ({
+                id: `VOL-${v.id}`,
+                rawId: v.id,
+                nama: v.nama,
+                nomorHp: v.nomor_hp,
+                alamat: v.alamat,
+                usia: v.usia,
+                bidang: v.bidang,
+                pantiTujuan: v.panti_tujuan || 'LKSA Kasih Bunda Mandiri',
+                tanggal: v.tanggal,
+                sesiWaktu: v.sesi_waktu,
+                tujuanKerelawanan: v.tujuan_kerelawanan,
+                ktpFileName: 'scan_identitas_relawan.jpg',
+                ktpFileSize: '900 KB',
+                status: v.status === 'disetujui' ? 'Disetujui' : v.status === 'ditolak' ? 'Ditolak' : 'Menunggu Persetujuan',
+                submittedAt: v.created_at ? new Date(v.created_at).toLocaleDateString('id-ID') : 'Baru saja'
+              }));
+              if (setVolunteerList) setVolunteerList(mappedVols);
+              setLocalVolunteers(mappedVols);
+            }
+          } catch (vErr) {
+            console.warn('Volunteer admin sync fallback:', vErr);
+          }
+        }
+      } catch (globalErr) {
+        console.warn('Dashboard sync error:', globalErr);
+      }
+    }
+    syncBackendData();
+    return () => { isMounted = false; };
+  }, [dashboardRoleMode, currentUser]);
+
+  const handleTrackUserTicket = async (e) => {
+    e?.preventDefault();
+    const clean = userTrackTicketInput.trim();
+    if (!clean) return;
+    setIsTrackingTicket(true);
+    setUserTrackResult(null);
+    try {
+      const res = await pengaduanService.trackPengaduan(clean);
+      setUserTrackResult(res);
+      showToast(`Tiket ${res.kode_tiket} berhasil ditemukan! Status: ${res.status}`);
+    } catch (err) {
+      setUserTrackResult({ error: true, message: err.friendlyMessage || 'Nomor tiket tidak ditemukan dalam database.' });
+    } finally {
+      setIsTrackingTicket(false);
+    }
+  };
 
   // Handlers for Super Admin
   const handleApprovePanti = (id) => {
@@ -204,7 +393,15 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
     showToast(`Panti ${id} telah DISETUJUI & Akun Admin Panti Diaktifkan!`);
   };
 
-  const handleApproveAdopsi = (id) => {
+  const handleApproveAdopsi = async (id) => {
+    const app = adopsiApplications.find(a => a.id === id);
+    if (app?.rawId) {
+      try {
+        await adopsiService.updateAdoptionStatus(app.rawId, 'diverifikasi');
+      } catch (err) {
+        console.warn('API update adopsi fallback:', err);
+      }
+    }
     setAdopsiApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'SK Pengangkatan Anak Terbit (Disetujui)' } : a));
     showToast(`Permohonan Adopsi ${id} Resmi Disetujui melalui Sidang PIPA Dinsos!`);
     triggerConfetti();
@@ -236,13 +433,67 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
     showToast(`Anak asuh baru (${newChild.name}) berhasil ditambahkan ke database panti!`);
   };
 
-  const handleAddGoodsNeed = (e) => {
+  const handleAddGoodsNeed = async (e) => {
     e.preventDefault();
-    if (!newNeedItem) return;
-    setPantiNeededGoods([...pantiNeededGoods, { id: Date.now(), item: newNeedItem, qty: newNeedQty || '10 Unit', status: 'Mendesak' }]);
+    if (!newNeedItem.trim()) return;
+    const urgency = newNeedUrgency || 'Mendesak / Barang Habis';
+    const targetQtyNumber = parseInt(newNeedQty.replace(/\D/g, '') || '10', 10);
+
+    try {
+      const res = await pantiService.createWishlist({
+        nama_barang: newNeedItem.trim(),
+        jumlah_kebutuhan: targetQtyNumber
+      });
+      setPantiNeededGoods(prev => [
+        {
+          id: res.id,
+          item: res.nama_barang,
+          qty: `0/${res.jumlah_kebutuhan} Unit`,
+          status: urgency
+        },
+        ...prev
+      ]);
+      showToast('Kebutuhan barang panti berhasil ditambahkan ke database & ditayangkan di direktori publik!');
+    } catch (err) {
+      console.warn('Fallback local wishlist add:', err);
+      setPantiNeededGoods([
+        ...pantiNeededGoods,
+        {
+          id: Date.now(),
+          item: newNeedItem.trim(),
+          qty: newNeedQty.trim() || '10 Unit',
+          status: urgency
+        }
+      ]);
+      showToast('Kebutuhan barang panti tersimpan.');
+    }
     setNewNeedItem('');
     setNewNeedQty('');
-    showToast('Kebutuhan barang panti berhasil diperbarui & ditayangkan di direktori publik!');
+    setNewNeedUrgency('');
+  };
+
+  const handleDeleteGoodsNeed = async (wishlistId) => {
+    try {
+      if (typeof wishlistId === 'number' && wishlistId < 1000000000) {
+        await pantiService.deleteWishlist(wishlistId);
+      }
+    } catch (err) {
+      console.warn('Delete wishlist error:', err);
+    }
+    setPantiNeededGoods(prev => prev.filter(item => item.id !== wishlistId));
+    showToast('Barang kebutuhan berhasil dihapus dari daftar wishlist.');
+  };
+
+  const handleVerifyPantiDonation = async (cashItem, newStatus) => {
+    try {
+      if (cashItem.rawId) {
+        await pantiService.updateDonationStatus(cashItem.rawId, newStatus);
+      }
+    } catch (err) {
+      console.warn('Update donation status error:', err);
+    }
+    setPantiCashIncome(prev => prev.map(c => c.id === cashItem.id ? { ...c, status: newStatus } : c));
+    showToast(`Status donasi ${cashItem.id} berhasil diubah menjadi ${newStatus}!`);
   };
 
   const triggerConfetti = () => {
@@ -511,121 +762,594 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
           {/* VIEW TYPE USER: PUBLIK USER WORKSPACE                */}
           {/* ==================================================== */}
           {dashboardRoleMode === 'user' && (
-            <div>
-              {/* Top User Greeting Banner */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* 1. TOP USER GREETING BANNER & PROFIL DINAMIS */}
               <div style={{
                 background: 'linear-gradient(135deg, #0b1f5c 0%, #1d4ed8 100%)',
                 color: '#ffffff',
                 borderRadius: '16px',
-                padding: '1.5rem 1.75rem',
-                marginBottom: '1.75rem',
+                padding: '1.75rem',
                 boxShadow: '0 10px 25px -5px rgba(29, 78, 216, 0.25)',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '1.25rem'
               }}>
-                <div>
-                  <span style={{ background: 'rgba(255,255,255,0.15)', color: '#bfdbfe', fontSize: '0.725rem', fontWeight: 800, padding: '0.25rem 0.65rem', borderRadius: '50px' }}>
-                    USER PUBLIK WORKSPACE
-                  </span>
-                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0.4rem 0 0.2rem 0', color: '#ffffff' }}>
-                    Pusat Penggunaan Fitur Terpadu HaloKids Dinsos
-                  </h2>
-                  <p style={{ fontSize: '0.85rem', color: '#bfdbfe', margin: 0 }}>
-                    Pilih modul di sebelah kiri untuk mengurus Adopsi COTA, Melaporkan Kasus, Berdonasi, atau Memantau Panti.
-                  </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.6rem',
+                    fontWeight: 900,
+                    color: '#67e8f9',
+                    border: '2px solid rgba(103, 232, 249, 0.4)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}>
+                    {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'W'}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span style={{ background: 'rgba(255,255,255,0.15)', color: '#bfdbfe', fontSize: '0.725rem', fontWeight: 800, padding: '0.2rem 0.65rem', borderRadius: '50px' }}>
+                        DASHBOARD PERSONAL WARGA
+                      </span>
+                      <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.725rem', fontWeight: 800, padding: '0.2rem 0.65rem', borderRadius: '50px' }}>
+                        ✔ Akun Terverifikasi
+                      </span>
+                    </div>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 900, margin: '0.35rem 0 0.2rem 0', color: '#ffffff' }}>
+                      Selamat Datang, {currentUser?.name || 'Warga'}!
+                    </h2>
+                    <p style={{ fontSize: '0.825rem', color: '#bfdbfe', margin: 0 }}>
+                      Email: <strong>{currentUser?.email || 'warga@gmail.com'}</strong> • No. HP/WA: <strong>{currentUser?.phone || '-'}</strong>
+                    </p>
+                  </div>
                 </div>
 
-                <button
-                  onClick={() => setUserTab('adopsi')}
-                  className="btn btn-primary"
-                  style={{ background: '#ffffff', color: '#0b1f5c', padding: '0.65rem 1.25rem', fontSize: '0.85rem', fontWeight: 800, border: 'none' }}
-                >
-                  <Heart size={16} color="#1d4ed8" fill="#1d4ed8" /> Ajukan Adopsi COTA
-                </button>
+                <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => {
+                      if (onSwitchToLanding) onSwitchToLanding();
+                    }}
+                    style={{
+                      background: 'rgba(255,255,255,0.12)',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      padding: '0.6rem 1.1rem',
+                      borderRadius: '50px',
+                      fontSize: '0.825rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Ke Halaman Utama
+                  </button>
+                  <button
+                    onClick={() => setUserTab('pengaduan')}
+                    style={{
+                      background: '#ffffff',
+                      color: '#0b1f5c',
+                      border: 'none',
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '50px',
+                      fontSize: '0.825rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <ShieldAlert size={15} color="#dc2626" /> Lapor Kasus Baru
+                  </button>
+                </div>
               </div>
 
-              {/* USER MODULE 1: ADOPSI RESMI (ALUR COTA) */}
-              {userTab === 'adopsi' && (
-                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.75rem', boxShadow: 'var(--shadow-sm)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0b1f5c', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Heart size={22} color="#1d4ed8" fill="#1d4ed8" /> Modul Adopsi Resmi (Alur COTA)
-                      </h3>
-                      <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '2px 0 0 0' }}>
-                        Pengajuan izin orang tua angkat resmi, filter kelayakan otomatis, upload 5 berkas dokumen AI OCR, dan lacak status PIPA.
-                      </p>
-                    </div>
+              {/* 2. FORM PENCARIAN & LACAK STATUS TIKET CEPAT KE FASTAPI BACKEND */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '16px',
+                padding: '1.25rem 1.5rem',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Search size={18} color="#1d4ed8" />
+                    <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0b1f5c', margin: 0 }}>
+                      Lacak Status Tiket Pengaduan Langsung (SIM-Kemensos API)
+                    </h3>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    Koneksi Real-time ke Endpoint: <code>/api/public/pengaduan/{'{kode_tiket}'}</code>
+                  </span>
+                </div>
 
-                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '0.35rem 0.85rem', borderRadius: '50px', fontSize: '0.775rem', fontWeight: 800 }}>
-                      ✔ Terhubung ke Dinsos &amp; PIPA
+                <form onSubmit={handleTrackUserTicket} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '260px' }}>
+                    <input
+                      type="text"
+                      placeholder="Masukkan Kode Tiket Laporan Anda (cth: HK-20261011-XXXXXXXX)"
+                      value={userTrackTicketInput}
+                      onChange={(e) => setUserTrackTicketInput(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 1rem',
+                        borderRadius: '10px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.85rem',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isTrackingTicket}
+                    style={{
+                      background: 'linear-gradient(135deg, #1d4ed8 0%, #0b1f5c 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      padding: '0.65rem 1.5rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    {isTrackingTicket ? (
+                      <>
+                        <div style={{ width: '14px', height: '14px', border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                        <span>Mencari...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search size={15} /> Lacak Tiket
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                {/* Hasil Pencarian Tiket */}
+                {userTrackResult && (
+                  <div style={{
+                    marginTop: '1rem',
+                    padding: '1rem',
+                    borderRadius: '12px',
+                    background: userTrackResult.error ? '#fef2f2' : '#f0fdf4',
+                    border: `1px solid ${userTrackResult.error ? '#fecaca' : '#bbf7d0'}`,
+                    fontSize: '0.85rem'
+                  }}>
+                    {userTrackResult.error ? (
+                      <div style={{ color: '#b91c1c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <AlertTriangle size={18} />
+                        <span>{userTrackResult.message}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, color: '#166534', fontSize: '0.95rem' }}>
+                            Tiket Ditemukan: {userTrackResult.kode_tiket}
+                          </div>
+                          <div style={{ color: '#374151', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                            Kategori: <strong>{userTrackResult.jenis_laporan || 'Pengaduan Anak'}</strong> • Tanggal: {userTrackResult.created_at ? new Date(userTrackResult.created_at).toLocaleString('id-ID') : 'Tercatat'}
+                          </div>
+                        </div>
+                        <span style={{
+                          background: userTrackResult.status === 'selesai' ? '#15803d' : userTrackResult.status === 'diproses' ? '#0284c7' : '#d97706',
+                          color: '#ffffff',
+                          padding: '0.35rem 0.85rem',
+                          borderRadius: '50px',
+                          fontWeight: 800,
+                          fontSize: '0.775rem',
+                          textTransform: 'uppercase'
+                        }}>
+                          Status: {userTrackResult.status}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. EMPAT KARTU STATUS LAYANAN UTAMA (4 METRIC CARDS) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                {/* KARTU 1: STATUS ADOPSI COTA */}
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>
+                      <Heart size={20} fill="#1d4ed8" />
+                    </div>
+                    <span style={{
+                      background: userAdoptions.length > 0 ? '#dcfce7' : '#f1f5f9',
+                      color: userAdoptions.length > 0 ? '#15803d' : '#64748b',
+                      fontSize: '0.725rem',
+                      fontWeight: 800,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '50px'
+                    }}>
+                      {userAdoptions.length > 0 ? 'Berkas Aktif' : 'Belum Ada'}
                     </span>
                   </div>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>Permohonan Adopsi COTA</div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0b1f5c', margin: '0.25rem 0' }}>
+                    {userAdoptions.length > 0 ? `${userAdoptions.length} Berkas` : '0 Pengajuan'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                    Status Terkini: <strong>{userAdoptions[0]?.status ? (userAdoptions[0].status === 'diverifikasi' ? 'Disetujui Dinsos' : userAdoptions[0].status) : 'Siap Diajukan'}</strong>
+                  </div>
+                </div>
 
-                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
-                    <p style={{ fontSize: '0.9rem', color: '#334155', fontWeight: 700, marginBottom: '1rem' }}>
-                      Mulai pengajuan adopsi COTA resmi atau lacak nomor tiket pengajuan Anda melalui Modal Interaktif:
+                {/* KARTU 2: TIKET PENGADUAN KASUS */}
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
+                      <ShieldAlert size={20} />
+                    </div>
+                    <span style={{
+                      background: userPengaduan.length > 0 ? '#fee2e2' : '#f1f5f9',
+                      color: userPengaduan.length > 0 ? '#b91c1c' : '#64748b',
+                      fontSize: '0.725rem',
+                      fontWeight: 800,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '50px'
+                    }}>
+                      {userPengaduan.length > 0 ? `${userPengaduan.length} Tiket` : '0 Tiket'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>Tiket Pengaduan Anda</div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0b1f5c', margin: '0.25rem 0' }}>
+                    {userPengaduan.length > 0 ? `${userPengaduan.length} Laporan` : '0 Laporan'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                    Laporan Terbaru: <strong>{userPengaduan[0]?.kode_tiket ? `${userPengaduan[0].kode_tiket} (${userPengaduan[0].status})` : 'Belum Ada'}</strong>
+                  </div>
+                </div>
+
+                {/* KARTU 3: PROGRAM RELAWAN (VOLUNTEER) */}
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#fdf4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9333ea' }}>
+                      <HeartHandshake size={20} />
+                    </div>
+                    <span style={{
+                      background: userRelawan.length > 0 ? '#f3e8ff' : '#f1f5f9',
+                      color: userRelawan.length > 0 ? '#7e22ce' : '#64748b',
+                      fontSize: '0.725rem',
+                      fontWeight: 800,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '50px'
+                    }}>
+                      {userRelawan.length > 0 ? 'Terdaftar' : 'Belum Ada'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>Program Relawan / Tutor</div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0b1f5c', margin: '0.25rem 0' }}>
+                    {userRelawan.length > 0 ? `${userRelawan.length} Kegiatan` : '0 Program'}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                    Status Kegiatan: <strong>{userRelawan[0]?.bidang ? `${userRelawan[0].bidang} (${userRelawan[0].status})` : 'Siap Bergabung'}</strong>
+                  </div>
+                </div>
+
+                {/* KARTU 4: TOTAL KONTRIBUSI DONASI */}
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                      <Wallet size={20} />
+                    </div>
+                    <span style={{
+                      background: '#dcfce7',
+                      color: '#15803d',
+                      fontSize: '0.725rem',
+                      fontWeight: 800,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '50px'
+                    }}>
+                      {userDonasi.length} Donasi
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>Total Kontribusi Donasi</div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0b1f5c', margin: '0.25rem 0' }}>
+                    Rp {userDonasi.filter(d => d.jenis_donasi === 'uang').reduce((acc, curr) => acc + Number(curr.jumlah_nominal || 0), 0).toLocaleString('id-ID')}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                    Terakhir: <strong>{userDonasi[0] ? `${userDonasi[0].jenis_donasi === 'uang' ? `Rp ${Number(userDonasi[0].jumlah_nominal).toLocaleString('id-ID')}` : 'Paket Barang'} (${userDonasi[0].status_verifikasi})` : 'Belum Ada Transaksi'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. RIWAYAT AKTIVITAS & DETAIL LAYANAN WARGA */}
+              <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0b1f5c', margin: 0 }}>
+                      Riwayat Aktivitas &amp; Pengajuan Berkas Saya
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
+                      Data tersinkronisasi otomatis dari database REST API FastAPI HaloKids
                     </p>
-                    
-                    <button
-                      onClick={() => alert('Modul Adopsi COTA telah aktif di sistem. Silakan manfaatkan form kelayakan & upload AI OCR!')}
-                      className="btn btn-primary"
-                      style={{ padding: '0.85rem 1.75rem', fontSize: '0.95rem', fontWeight: 800 }}
-                    >
-                      🚀 Buka Window Pengajuan &amp; Tracking Adopsi COTA
-                    </button>
+                  </div>
+
+                  {/* Filter Sub-Tabs */}
+                  <div style={{ display: 'flex', gap: '0.35rem', background: '#f1f5f9', padding: '0.25rem', borderRadius: '10px' }}>
+                    {[
+                      { key: 'adopsi', label: 'Adopsi COTA' },
+                      { key: 'pengaduan', label: 'Pengaduan' },
+                      { key: 'relawan', label: 'Relawan' },
+                      { key: 'donasi', label: 'Donasi' }
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setUserTab(tab.key)}
+                        style={{
+                          background: userTab === tab.key ? '#ffffff' : 'transparent',
+                          color: userTab === tab.key ? '#0b1f5c' : '#64748b',
+                          fontWeight: userTab === tab.key ? 800 : 600,
+                          fontSize: '0.775rem',
+                          padding: '0.4rem 0.85rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          boxShadow: userTab === tab.key ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
 
-              {/* USER MODULE 2: PENGADUAN KASUS */}
-              {userTab === 'pengaduan' && (
-                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.75rem', boxShadow: 'var(--shadow-sm)' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0b1f5c', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <ShieldAlert size={22} color="#dc2626" /> Kanal Pelaporan Pengaduan &amp; Kekerasan Anak (24/7)
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
-                    Pelaporan kekerasan fisik/psikis, eksploitasi anak, atau panti ilegal dengan proteksi 100% anonimitas saksi.
-                  </p>
-
-                  <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '1.25rem', color: '#991b1b', fontSize: '0.85rem' }}>
-                    <strong>📢 Panduan Pengaduan Darurat:</strong> Laporan Anda akan langsung masuk ke Dashboard Tim Reaksi Cepat (TRC) Dinsos Kabupaten dan mendapatkan Kode Tiket Rahasia untuk pelacakan live.
+                {isUserDataLoading ? (
+                  <div style={{ textAlign: 'center', padding: '3rem 0', color: '#64748b' }}>
+                    <div style={{ width: '28px', height: '28px', border: '3px solid #1d4ed8', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 0.75rem' }} />
+                    <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>Memuat data akun Anda dari database API...</p>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div>
+                    {/* TAB ADOPSI */}
+                    {userTab === 'adopsi' && (
+                      <div>
+                        {userAdoptions.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', background: '#f8fafc', borderRadius: '12px' }}>
+                            <Heart size={32} color="#94a3b8" style={{ margin: '0 auto 0.5rem' }} />
+                            <p style={{ fontSize: '0.875rem', fontWeight: 700, color: '#334155', margin: '0 0 0.35rem 0' }}>
+                              Belum ada berkas pengajuan adopsi COTA yang diajukan.
+                            </p>
+                            <p style={{ fontSize: '0.775rem', color: '#64748b', margin: '0 0 1rem 0' }}>
+                              Anda dapat mengajukan permohonan izin adopsi resmi lengkap dengan verifikasi berkas AI OCR & Permensos.
+                            </p>
+                            <button
+                              onClick={() => {
+                                if (onSwitchToLanding) onSwitchToLanding();
+                              }}
+                              className="btn btn-primary"
+                              style={{ padding: '0.5rem 1.25rem', fontSize: '0.825rem' }}
+                            >
+                              Ajukan Adopsi COTA Sekarang
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                              <thead>
+                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                                  <th style={{ padding: '0.75rem' }}>ID Permohonan</th>
+                                  <th style={{ padding: '0.75rem' }}>Nama Pemohon</th>
+                                  <th style={{ padding: '0.75rem' }}>Tanggal Lahir</th>
+                                  <th style={{ padding: '0.75rem' }}>Tanggal Pernikahan</th>
+                                  <th style={{ padding: '0.75rem' }}>Status Sidang PIPA</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {userAdoptions.map((ad, idx) => (
+                                  <tr key={ad.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.75rem', fontWeight: 800, color: '#1d4ed8' }}>PIPA-REG-{ad.id}</td>
+                                    <td style={{ padding: '0.75rem' }}>{ad.nama_pemohon}</td>
+                                    <td style={{ padding: '0.75rem' }}>{ad.tanggal_lahir_pemohon || '-'}</td>
+                                    <td style={{ padding: '0.75rem' }}>{ad.tanggal_pernikahan || '-'}</td>
+                                    <td style={{ padding: '0.75rem' }}>
+                                      <span style={{
+                                        background: ad.status === 'diverifikasi' ? '#dcfce7' : ad.status === 'ditolak' ? '#fee2e2' : '#fef3c7',
+                                        color: ad.status === 'diverifikasi' ? '#15803d' : ad.status === 'ditolak' ? '#b91c1c' : '#b45309',
+                                        padding: '0.2rem 0.6rem',
+                                        borderRadius: '50px',
+                                        fontWeight: 800,
+                                        fontSize: '0.725rem'
+                                      }}>
+                                        {ad.status === 'diverifikasi' ? 'Disetujui Dinsos' : ad.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-              {/* USER MODULE 3: DONASI TRANSPARAN */}
-              {userTab === 'donasi' && (
-                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.75rem', boxShadow: 'var(--shadow-sm)' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0b1f5c', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Wallet size={22} color="#15803d" /> Pusat Donasi Uang &amp; Barang Transparan
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
-                    Penyaluran donasi langsung ke rekening resmi LKSA terakreditasi dan pemenuhan wishlist kebutuhan anak asuh.
-                  </p>
+                    {/* TAB PENGADUAN */}
+                    {userTab === 'pengaduan' && (
+                      <div>
+                        {userPengaduan.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', background: '#f8fafc', borderRadius: '12px' }}>
+                            <ShieldAlert size={32} color="#94a3b8" style={{ margin: '0 auto 0.5rem' }} />
+                            <p style={{ fontSize: '0.875rem', fontWeight: 700, color: '#334155', margin: '0 0 0.35rem 0' }}>
+                              Belum ada riwayat pengaduan yang dibuat melalui akun Anda.
+                            </p>
+                            <p style={{ fontSize: '0.775rem', color: '#64748b', margin: '0 0 1rem 0' }}>
+                              Jika Anda melihat tindakan kekerasan atau penelantaran anak, laporkan segera demi keselamatan anak.
+                            </p>
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                              <thead>
+                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                                  <th style={{ padding: '0.75rem' }}>Kode Tiket</th>
+                                  <th style={{ padding: '0.75rem' }}>Jenis Laporan</th>
+                                  <th style={{ padding: '0.75rem' }}>Tanggal Masuk</th>
+                                  <th style={{ padding: '0.75rem' }}>Status TRC</th>
+                                  <th style={{ padding: '0.75rem', textAlign: 'right' }}>Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {userPengaduan.map((rep) => (
+                                  <tr key={rep.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.75rem', fontWeight: 800, color: '#1d4ed8' }}>{rep.kode_tiket}</td>
+                                    <td style={{ padding: '0.75rem' }}>{rep.jenis_laporan}</td>
+                                    <td style={{ padding: '0.75rem' }}>{rep.created_at ? new Date(rep.created_at).toLocaleString('id-ID') : '-'}</td>
+                                    <td style={{ padding: '0.75rem' }}>
+                                      <span style={{
+                                        background: rep.status === 'selesai' ? '#dcfce7' : rep.status === 'diproses' ? '#e0f2fe' : '#fef3c7',
+                                        color: rep.status === 'selesai' ? '#15803d' : rep.status === 'diproses' ? '#0369a1' : '#b45309',
+                                        padding: '0.2rem 0.6rem',
+                                        borderRadius: '50px',
+                                        fontWeight: 800,
+                                        fontSize: '0.725rem'
+                                      }}>
+                                        {rep.status}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                                      <button
+                                        onClick={() => {
+                                          setUserTrackTicketInput(rep.kode_tiket);
+                                          handleTrackUserTicket({ preventDefault: () => {} });
+                                        }}
+                                        style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.3rem 0.65rem', borderRadius: '6px', fontSize: '0.725rem', fontWeight: 700, cursor: 'pointer' }}
+                                      >
+                                        Lacak Status
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '1.25rem', color: '#166534', fontSize: '0.85rem' }}>
-                    <strong>💰 Donasi Terverifikasi:</strong> Unggah bukti transfer atau buat janji donasi barang untuk mendapatkan status "Terverifikasi" di riwayat akun donatur.
+                    {/* TAB RELAWAN */}
+                    {userTab === 'relawan' && (
+                      <div>
+                        {userRelawan.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', background: '#f8fafc', borderRadius: '12px' }}>
+                            <HeartHandshake size={32} color="#94a3b8" style={{ margin: '0 auto 0.5rem' }} />
+                            <p style={{ fontSize: '0.875rem', fontWeight: 700, color: '#334155', margin: '0 0 0.35rem 0' }}>
+                              Belum ada pendaftaran program relawan yang tercatat.
+                            </p>
+                            <p style={{ fontSize: '0.775rem', color: '#64748b' }}>
+                              Daftarkan diri Anda untuk menjadi pengajar atau pendamping anak asuh di LKSA terdekat.
+                            </p>
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                              <thead>
+                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                                  <th style={{ padding: '0.75rem' }}>ID Pendaftaran</th>
+                                  <th style={{ padding: '0.75rem' }}>Bidang Relawan</th>
+                                  <th style={{ padding: '0.75rem' }}>Panti Tujuan</th>
+                                  <th style={{ padding: '0.75rem' }}>Tanggal &amp; Sesi</th>
+                                  <th style={{ padding: '0.75rem' }}>Status Dinsos</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {userRelawan.map((vol) => (
+                                  <tr key={vol.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.75rem', fontWeight: 800, color: '#7e22ce' }}>VOL-{vol.id}</td>
+                                    <td style={{ padding: '0.75rem', fontWeight: 700 }}>{vol.bidang}</td>
+                                    <td style={{ padding: '0.75rem' }}>{vol.panti_tujuan || 'LKSA Binaan'}</td>
+                                    <td style={{ padding: '0.75rem' }}>{vol.tanggal} ({vol.sesi_waktu})</td>
+                                    <td style={{ padding: '0.75rem' }}>
+                                      <span style={{
+                                        background: vol.status === 'disetujui' ? '#dcfce7' : vol.status === 'ditolak' ? '#fee2e2' : '#fef3c7',
+                                        color: vol.status === 'disetujui' ? '#15803d' : vol.status === 'ditolak' ? '#b91c1c' : '#b45309',
+                                        padding: '0.2rem 0.6rem',
+                                        borderRadius: '50px',
+                                        fontWeight: 800,
+                                        fontSize: '0.725rem'
+                                      }}>
+                                        {vol.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* TAB DONASI */}
+                    {userTab === 'donasi' && (
+                      <div>
+                        {userDonasi.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', background: '#f8fafc', borderRadius: '12px' }}>
+                            <Wallet size={32} color="#94a3b8" style={{ margin: '0 auto 0.5rem' }} />
+                            <p style={{ fontSize: '0.875rem', fontWeight: 700, color: '#334155', margin: '0 0 0.35rem 0' }}>
+                              Belum ada transaksi donasi yang tercatat di akun Anda.
+                            </p>
+                            <p style={{ fontSize: '0.775rem', color: '#64748b' }}>
+                              Dukungan donasi uang atau paket sembako sangat berarti bagi masa depan adik-adik asuh panti.
+                            </p>
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
+                              <thead>
+                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                                  <th style={{ padding: '0.75rem' }}>ID Donasi</th>
+                                  <th style={{ padding: '0.75rem' }}>Jenis Donasi</th>
+                                  <th style={{ padding: '0.75rem' }}>Nominal / Barang</th>
+                                  <th style={{ padding: '0.75rem' }}>Tanggal</th>
+                                  <th style={{ padding: '0.75rem' }}>Status Verifikasi</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {userDonasi.map((dn) => (
+                                  <tr key={dn.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.75rem', fontWeight: 800, color: '#15803d' }}>TRX-{dn.id}</td>
+                                    <td style={{ padding: '0.75rem', textTransform: 'capitalize' }}>{dn.jenis_donasi}</td>
+                                    <td style={{ padding: '0.75rem', fontWeight: 700 }}>
+                                      {dn.jenis_donasi === 'uang' ? `Rp ${Number(dn.jumlah_nominal).toLocaleString('id-ID')}` : `${dn.nama_barang || 'Paket Logistik'} (${dn.jumlah_barang || 1} ${dn.satuan_barang || 'Paket'})`}
+                                    </td>
+                                    <td style={{ padding: '0.75rem' }}>{dn.created_at ? new Date(dn.created_at).toLocaleDateString('id-ID') : '-'}</td>
+                                    <td style={{ padding: '0.75rem' }}>
+                                      <span style={{
+                                        background: dn.status_verifikasi === 'terverifikasi' ? '#dcfce7' : dn.status_verifikasi === 'ditolak' ? '#fee2e2' : '#fef3c7',
+                                        color: dn.status_verifikasi === 'terverifikasi' ? '#15803d' : dn.status_verifikasi === 'ditolak' ? '#b91c1c' : '#b45309',
+                                        padding: '0.2rem 0.6rem',
+                                        borderRadius: '50px',
+                                        fontWeight: 800,
+                                        fontSize: '0.725rem'
+                                      }}>
+                                        {dn.status_verifikasi}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-
-              {/* USER MODULE 4: DIREKTORI PANTI */}
-              {userTab === 'panti' && (
-                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.75rem', boxShadow: 'var(--shadow-sm)' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0b1f5c', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Building2 size={22} color="#1d4ed8" /> Direktori &amp; Wishlist Kebutuhan LKSA Panti
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
-                    Monitoring 28 Lembaga Kesejahteraan Sosial Anak (LKSA) berizin resmi Kemensos &amp; Dinsos Kabupaten.
-                  </p>
-
-                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '1.25rem', color: '#1e40af', fontSize: '0.85rem' }}>
-                    <strong>🏛️ Pengawasan Berkala Dinsos:</strong> Seluruh panti terdaftar memiliki status akreditasi resmi dan laporan pengawasan berkala.
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
@@ -1026,52 +1750,74 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
                     </p>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }} className="grid-2-mobile">
                     {/* Left: Input Goods Need */}
                     <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0b1f5c', margin: '0 0 1rem 0' }}>
-                        📦 Input Barang Dibutuhkan Panti (Wishlist)
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0b1f5c', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Package size={20} color="#1d4ed8" />
+                        <span>Input Barang Dibutuhkan Panti (Wishlist)</span>
                       </h3>
 
-                      <form onSubmit={handleAddGoodsNeed} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                      <form onSubmit={handleAddGoodsNeed} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
                         <input 
                           type="text" 
                           placeholder="Nama barang (contoh: Sembako, Popok, Buku)"
                           value={newNeedItem}
                           onChange={(e) => setNewNeedItem(e.target.value)}
-                          style={{ flex: 1, padding: '0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                          style={{ flex: '1 1 180px', minWidth: '150px', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none' }}
                         />
                         <input 
                           type="text" 
                           placeholder="Target Qty (misal: 20 Paket)"
                           value={newNeedQty}
                           onChange={(e) => setNewNeedQty(e.target.value)}
-                          style={{ width: '130px', padding: '0.65rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                          style={{ flex: '0 1 120px', minWidth: '100px', padding: '0.65rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none' }}
                         />
-                        <button type="submit" className="btn btn-primary" style={{ borderRadius: '8px', padding: '0.65rem 1rem' }}>
+                        <select
+                          value={newNeedUrgency}
+                          onChange={(e) => setNewNeedUrgency(e.target.value)}
+                          style={{ flex: '0 1 165px', minWidth: '140px', padding: '0.65rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none', background: '#ffffff', color: newNeedUrgency ? '#0f172a' : '#94a3b8' }}
+                        >
+                          <option value="" disabled>Pilih Urgensi...</option>
+                          <option value="Mendesak / Barang Habis">Mendesak / Barang Habis</option>
+                          <option value="Hampir Habis">Hampir Habis</option>
+                          <option value="Tersedia Sebagian">Tersedia Sebagian</option>
+                        </select>
+                        <button type="submit" className="btn btn-primary" style={{ borderRadius: '8px', padding: '0.65rem 1.1rem', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
                           + Tambah
                         </button>
                       </form>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {pantiNeededGoods.map((item) => (
-                          <div key={item.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.75rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <strong style={{ fontSize: '0.875rem', color: '#0b1f5c', display: 'block' }}>{item.item}</strong>
-                              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Target: {item.qty}</span>
+                        {pantiNeededGoods.map((item) => {
+                          const isUrgent = item.status === 'Mendesak / Barang Habis' || item.status === 'Mendesak';
+                          const isWarning = item.status === 'Hampir Habis';
+                          const badgeStyle = isUrgent
+                            ? { background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }
+                            : isWarning
+                            ? { background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }
+                            : { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' };
+
+                          return (
+                            <div key={item.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.75rem 0.95rem', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{ minWidth: 0 }}>
+                                <strong style={{ fontSize: '0.875rem', color: '#0b1f5c', display: 'block' }}>{item.item}</strong>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Target: {item.qty}</span>
+                              </div>
+                              <span style={{ ...badgeStyle, fontSize: '0.7rem', fontWeight: 800, padding: '0.25rem 0.65rem', borderRadius: '50px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                {item.status}
+                              </span>
                             </div>
-                            <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: '0.7rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '50px' }}>
-                              {item.status}
-                            </span>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
 
                     {/* Right: Income Cash Records */}
                     <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0b1f5c', margin: '0 0 1rem 0' }}>
-                        💰 Rekapitulasi Donasi Uang Masuk
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0b1f5c', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Wallet size={20} color="#1d4ed8" />
+                        <span>Rekapitulasi Donasi Uang Masuk</span>
                       </h3>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>

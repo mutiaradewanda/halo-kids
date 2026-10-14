@@ -89,9 +89,10 @@ export default function UserSidebar({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(7, 21, 59, 0.6)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 40,
+            background: 'rgba(7, 21, 59, 0.65)',
+            backdropFilter: 'blur(5px)',
+            WebkitBackdropFilter: 'blur(5px)',
+            zIndex: 55,
             transition: 'opacity 0.25s ease'
           }}
         />
@@ -482,9 +483,9 @@ export default function UserSidebar({
                       flexShrink: 0,
                       position: 'relative'
                     }}
-                    title={currentUser?.name || 'User Terotentikasi'}
+                    title={currentUser?.name || 'Warga'}
                   >
-                    {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                    {currentUser?.name ? currentUser.name.trim().charAt(0).toUpperCase() : 'W'}
                     <span
                       style={{
                         position: 'absolute',
@@ -511,7 +512,7 @@ export default function UserSidebar({
                           overflow: 'hidden'
                         }}
                       >
-                        {currentUser?.name || 'Ahmad Rifai'}
+                        {currentUser?.name || 'Warga'}
                       </div>
                       <div
                         style={{
@@ -656,8 +657,10 @@ export default function UserSidebar({
             top: 0;
             bottom: 0;
             transform: translateX(-100%);
-            width: 270px !important;
-            z-index: 45 !important;
+            width: min(290px, 85vw) !important;
+            z-index: 60 !important;
+            box-shadow: 8px 0 32px rgba(7, 21, 59, 0.45) !important;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
           }
           .user-sidebar.user-sidebar-mobile-open {
             transform: translateX(0) !important;

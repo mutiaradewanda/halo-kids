@@ -105,29 +105,6 @@ export default function Footer({ onOpenMap, onOpenAdopsi }) {
 
 
         </div>
-
-        {/* Bottom copyright bar from image */}
-        <div style={{
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          padding: '1.25rem 0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          fontSize: '0.775rem',
-          color: '#94a3b8'
-        }}>
-          <div>
-            © 2024 Dinas Sosial Pemerintah Kabupaten. Hak Cipta Dilindungi Undang-Undang.
-          </div>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <span style={{ cursor: 'pointer' }}>Pusat Data dan Informasi Kesejahteraan Sosial</span>
-            <span>•</span>
-            <span style={{ cursor: 'pointer' }}>Transparansi Anggaran Publik</span>
-          </div>
-        </div>
-
       </div>
 
       <style>{`

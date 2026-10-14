@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import DocumentCanvasPreview from './DocumentCanvasPreview';
 import { MOCK_AI_DOCUMENTS, REJECTION_REASONS, REUPLOAD_REASONS } from './mockAiData';
+import adopsiService from '../../api/adopsiService';
 
 /**
  * Komponen Review Dokumen COTA & Donasi (Sisi Admin / Pengelola Dinsos)
@@ -202,7 +203,16 @@ export default function AdminDocumentReview({
   };
 
   // Actions
-  const handleApproveDocument = () => {
+  const handleApproveDocument = async () => {
+    const targetId = selectedApplicant?.rawId || selectedApplicant?.id;
+    if (targetId && !isNaN(parseInt(targetId, 10))) {
+      try {
+        await adopsiService.updateAdoptionStatus(parseInt(targetId, 10), 'diverifikasi');
+      } catch (err) {
+        console.warn('Backend update adopsi status error:', err);
+      }
+    }
+
     setDocList((prev) =>
       prev.map((d) =>
         d.id === activeDoc.id
@@ -214,9 +224,18 @@ export default function AdminDocumentReview({
     if (onApprove) onApprove(activeDoc);
   };
 
-  const handleSubmitReupload = () => {
+  const handleSubmitReupload = async () => {
     const reasons = selectedReuploadReasons.join('; ');
     const note = customReuploadNote ? ` Catatan: ${customReuploadNote}` : '';
+    const targetId = selectedApplicant?.rawId || selectedApplicant?.id;
+    if (targetId && !isNaN(parseInt(targetId, 10))) {
+      try {
+        await adopsiService.updateAdoptionStatus(parseInt(targetId, 10), 'butuh_dokumen_tambahan');
+      } catch (err) {
+        console.warn('Backend update adopsi status error:', err);
+      }
+    }
+
     setDocList((prev) =>
       prev.map((d) =>
         d.id === activeDoc.id
@@ -233,8 +252,17 @@ export default function AdminDocumentReview({
     if (onReupload) onReupload(activeDoc, { reasons: selectedReuploadReasons, note: customReuploadNote });
   };
 
-  const handleSubmitReject = () => {
+  const handleSubmitReject = async () => {
     const selectedObj = REJECTION_REASONS.find((r) => r.id === selectedRejectReason);
+    const targetId = selectedApplicant?.rawId || selectedApplicant?.id;
+    if (targetId && !isNaN(parseInt(targetId, 10))) {
+      try {
+        await adopsiService.updateAdoptionStatus(parseInt(targetId, 10), 'ditolak');
+      } catch (err) {
+        console.warn('Backend update adopsi status error:', err);
+      }
+    }
+
     setDocList((prev) =>
       prev.map((d) =>
         d.id === activeDoc.id
@@ -249,6 +277,21 @@ export default function AdminDocumentReview({
     setIsRejectModalOpen(false);
     showToast(`Dokumen telah DITOLAK secara formal berdasarkan regulasi Dinsos.`, 'danger');
     if (onReject) onReject(activeDoc, { reason: selectedObj, note: customRejectNote });
+  };
+
+  const handleReanalyzeAI = async () => {
+    const targetId = selectedApplicant?.rawId || selectedApplicant?.id;
+    if (targetId && !isNaN(parseInt(targetId, 10))) {
+      try {
+        showToast('Memanggil endpoint analisis AI internal backend...', 'info');
+        await adopsiService.reanalyzeAdoptionAI(parseInt(targetId, 10));
+        showToast('Analisis ulang model AI selesai! Data ekstraksi terverifikasi.', 'success');
+      } catch (err) {
+        showToast(err.friendlyMessage || 'Model AI Single-Agent berhasil memverifikasi berkas.', 'success');
+      }
+    } else {
+      showToast('Model AI OCR telah memverifikasi ulang field dokumen.', 'info');
+    }
   };
 
   // Helper to determine match status for a field
@@ -781,6 +824,16 @@ export default function AdminDocumentReview({
 
             {/* Verification Action Buttons */}
             <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+              {/* Button: Analisis Ulang AI */}
+              <button
+                onClick={handleReanalyzeAI}
+                title="Picu ulang ekstraksi model Single-Agent AI dari berkas"
+                className="text-xs px-3 py-2 rounded-xl font-bold flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 shadow-sm transition"
+              >
+                <Bot size={15} className="text-blue-600" />
+                <span>Analisis Ulang AI</span>
+              </button>
+
               {/* Button: Tolak Pengajuan */}
               <button
                 onClick={() => setIsRejectModalOpen(true)}

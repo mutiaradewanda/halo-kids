@@ -1,32 +1,78 @@
 import React, { useState } from 'react';
-import { X, Search, CheckCircle2, Clock, ShieldCheck, MapPin, UserCheck } from 'lucide-react';
+import { X, Search, CheckCircle2, Clock, ShieldCheck, MapPin, UserCheck, AlertCircle } from 'lucide-react';
+import pengaduanService from '../../api/pengaduanService';
 
 export default function LacakModal({ isOpen, onClose }) {
-  const [ticketInput, setTicketInput] = useState('TRC-2024-8842');
-  const [searchedData, setSearchedData] = useState({
-    ticketId: 'TRC-2024-8842',
-    kategori: 'Kekerasan Fisik / Pelindungan Korban',
-    lokasi: 'Kecamatan Cibinong, Kab. Bogor',
-    statusUtama: 'Dalam Pendampingan Tim TRC Dinsos',
-    statusColor: '#0284c7',
-    timeline: [
-      { title: 'Laporan Diterima System', time: 'Hari ini, 09.15 WIB', desc: 'Laporan terenkripsi masuk & diverifikasi otomatis', done: true },
-      { title: 'Penugasan Tim TRC Rapid Unit', time: 'Hari ini, 09.30 WIB', desc: 'Petugas lapangan 2 orang dikirim ke lokasi', done: true },
-      { title: 'Penanganan Darurat & Rujukan Safehouse', time: 'Hari ini, 10.15 WIB', desc: 'Korban dalam kondisi aman di Safehouse Dinsos', done: true },
-      { title: 'Pendampingan Psikologi & Bantuan Hukum', time: 'Proses Berjalan', desc: 'Konsultasi hukum gratis oleh Advokat Dinsos', done: false }
-    ]
-  });
+  const [ticketInput, setTicketInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [searchedData, setSearchedData] = useState(null);
 
   if (!isOpen) return null;
 
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault();
-    if (!ticketInput.trim()) return;
-    // Keep or refresh searched data demo
-    setSearchedData({
-      ...searchedData,
-      ticketId: ticketInput.toUpperCase()
-    });
+    const cleanTicket = ticketInput.trim();
+    if (!cleanTicket) return;
+
+    setIsLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await pengaduanService.trackPengaduan(cleanTicket);
+      const isBaru = res.status === 'baru';
+      const isDiproses = res.status === 'diproses';
+      const isSelesai = res.status === 'selesai';
+      const isDitolak = res.status === 'ditolak';
+
+      setSearchedData({
+        ticketId: res.kode_tiket,
+        kategori: res.jenis_laporan || 'Laporan Pelindungan Anak',
+        lokasi: 'Kabupaten Bogor (Terenkripsi Aman)',
+        statusUtama: isBaru
+          ? 'Laporan Diterima Sistem (Menunggu Penugasan)'
+          : isDiproses
+          ? 'Dalam Pendampingan Tim TRC Dinsos'
+          : isSelesai
+          ? 'Kasus Selesai Ditangani'
+          : 'Laporan Tidak Dapat Diproses / Ditolak',
+        statusColor: isBaru ? '#eab308' : isDiproses ? '#0284c7' : isSelesai ? '#16a34a' : '#dc2626',
+        timeline: [
+          {
+            title: 'Laporan Diterima Sistem',
+            time: res.created_at ? new Date(res.created_at).toLocaleString('id-ID') : 'Tercatat',
+            desc: 'Laporan terenkripsi masuk & diverifikasi otomatis di database FastAPI',
+            done: true
+          },
+          {
+            title: 'Verifikasi & Triase Petugas Dinsos',
+            time: isBaru ? 'Tahap Berjalan' : 'Selesai',
+            desc: 'Petugas Dinsos memeriksa tingkat urgensi dan kelayakan bukti',
+            done: !isBaru
+          },
+          {
+            title: 'Penugasan Tim TRC & Safehouse',
+            time: isDiproses ? 'Sedang Berjalan' : isSelesai ? 'Selesai' : 'Tahap Lanjutan',
+            desc: 'Petugas lapangan dikerahkan ke lokasi untuk perlindungan fisik & psikis anak',
+            done: isDiproses || isSelesai
+          },
+          {
+            title: 'Penyelesaian & Pendampingan Lanjutan',
+            time: isSelesai ? 'Kasus Ditutup' : 'Tahap Akhir',
+            desc: 'Hak anak dipulihkan dan koordinasi hukum selesai',
+            done: isSelesai
+          }
+        ]
+      });
+    } catch (err) {
+      console.warn('Pelacakan tiket backend:', err);
+      setErrorMsg(
+        err.friendlyMessage ||
+        'Kode tiket tidak ditemukan di server. Pastikan format nomor tiket sesuai bukti pelaporan (cth: HK-20261011-XXXXXXXX).'
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -72,10 +118,10 @@ export default function LacakModal({ isOpen, onClose }) {
 
         {/* Search Input Box */}
         <div style={{ padding: '1.5rem' }}>
-          <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
             <input 
               type="text" 
-              placeholder="Masukkan Kode Tiket (Contoh: TRC-2024-8842)"
+              placeholder="Contoh: HK-20261011-XXXXXXXX"
               value={ticketInput}
               onChange={(e) => setTicketInput(e.target.value)}
               style={{
@@ -90,12 +136,32 @@ export default function LacakModal({ isOpen, onClose }) {
             />
             <button 
               type="submit"
+              disabled={isLoading}
               className="btn btn-primary"
-              style={{ borderRadius: '50px', padding: '0.65rem 1.25rem' }}
+              style={{ borderRadius: '50px', padding: '0.65rem 1.25rem', opacity: isLoading ? 0.7 : 1 }}
             >
-              Cek Tiket
+              {isLoading ? 'Mengecek...' : 'Cek Tiket'}
             </button>
           </form>
+
+          {errorMsg && (
+            <div style={{
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#991b1b',
+              padding: '0.75rem 1rem',
+              borderRadius: '10px',
+              fontSize: '0.825rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '1rem'
+            }}>
+              <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           {/* Ticket Information Card */}
           {searchedData && (

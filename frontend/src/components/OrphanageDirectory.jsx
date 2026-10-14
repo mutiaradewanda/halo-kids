@@ -1,8 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, MapPin, Users, Calendar, Award, Phone, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { pantiService } from '../api';
 
 export default function OrphanageDirectory({ onSelectPanti, isLoggedIn, onOpenLogin }) {
   const [activeCategory, setActiveCategory] = useState('Semua');
+  const [dynamicPantiList, setDynamicPantiList] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPanti() {
+      try {
+        const res = await pantiService.getPublicPantiList();
+        if (isMounted && Array.isArray(res) && res.length > 0) {
+          const mapped = res.map((p, idx) => ({
+            id: p.id,
+            name: p.nama_panti,
+            category: p.jumlah_anak_saat_ini <= 30 ? 'Balita' : 'Anak',
+            akreditasi: p.status_akreditasi ? `AKREDITASI ${p.status_akreditasi} KEMENSOS` : 'TERDAFTAR RESMI',
+            regNo: `NO: ${p.id}/LKSA/DINSOS/2024`,
+            image: p.foto_panti || (idx % 2 === 0 ? '/lksa1.jpg' : '/lksa2.jpg'),
+            location: p.alamat ? p.alamat.slice(0, 35) + '...' : 'Kabupaten Bogor',
+            anakCount: `${p.jumlah_anak_saat_ini || 0} Anak`,
+            usia: '0 - 18 Thn',
+            highlight: p.deskripsi ? p.deskripsi.slice(0, 50) + '...' : 'Panti terakreditasi resmi Dinsos',
+            phone: p.nomor_kontak || '0812-9988-7711',
+            address: p.alamat || 'Alamat panti asuhan',
+            bank: p.rekening_bank ? `${p.nama_bank || 'Bank'}: ${p.rekening_bank}` : 'Bank Mandiri: 133-00-1928374-1',
+            desc: p.deskripsi || 'Lembaga Kesejahteraan Sosial Anak terakreditasi Kemensos.'
+          }));
+          setDynamicPantiList(mapped);
+        }
+      } catch (err) {
+        // Fallback to initial local data
+      }
+    }
+    loadPanti();
+    return () => { isMounted = false; };
+  }, []);
 
   const pantiData = [
     {
@@ -55,9 +89,11 @@ export default function OrphanageDirectory({ onSelectPanti, isLoggedIn, onOpenLo
     }
   ];
 
+  const dataSource = dynamicPantiList.length > 0 ? dynamicPantiList : pantiData;
+
   const filteredPanti = activeCategory === 'Semua' 
-    ? pantiData 
-    : pantiData.filter(p => p.category === activeCategory);
+    ? dataSource 
+    : dataSource.filter(p => p.category === activeCategory);
 
   return (
     <section id="direktori-panti" style={{ padding: '4rem 0', background: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>

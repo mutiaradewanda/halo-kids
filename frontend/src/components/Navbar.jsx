@@ -191,7 +191,7 @@ export default function Navbar({
                 gap: '0.35rem'
               }}>
                 <User size={14} color="#1d4ed8" />
-                <span>{currentUser?.name || 'Ahmad Rifai'}</span>
+                <span>{currentUser?.name || 'Warga'}</span>
               </div>
               <button
                 onClick={onLogout}

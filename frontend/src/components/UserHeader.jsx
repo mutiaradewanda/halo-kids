@@ -37,32 +37,36 @@ export default function UserHeader({
         return { title: 'Portal Donasi Terpadu & Transparan', badge: 'Audit Dana & Barang' };
       case 'adopsi':
         return { title: 'Layanan Pengangkatan Anak (Adopsi COTA)', badge: 'Prosedur Sidang PIPA' };
+      case 'beranda':
       default:
-        return { title: 'Portal Informasi Terpadu HaloKids DINSOS', badge: 'Pemerintah Kabupaten' };
+        return {
+          title: isLoggedIn ? 'Dashboard Personal Warga' : 'Portal Informasi Terpadu HaloKids DINSOS',
+          badge: isLoggedIn ? 'Warga Terverifikasi' : 'Pemerintah Kabupaten'
+        };
     }
   };
 
   const { title, badge } = getTabTitle();
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm px-4 sm:px-6 py-2.5 flex items-center justify-between transition-all">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between transition-all">
       
       {/* Sisi Kiri: Mobile Toggle & Konteks Halaman (Breadcrumbs) */}
-      <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
         
         {/* Mobile Hamburger Button */}
         <button
           onClick={onOpenMobileSidebar}
-          className="lg:hidden p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center justify-center shrink-0 border border-slate-200"
+          className="lg:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 transition flex items-center justify-center shrink-0 border border-slate-200/80 shadow-2xs"
           title="Buka Navigasi Menu"
           aria-label="Menu Navigasi"
         >
-          <Menu size={20} />
+          <Menu size={19} />
         </button>
 
         {/* Mobile Brand Title (Muncul di layar kecil saat breadcrumb disembunyikan) */}
         <div className="flex lg:hidden items-center gap-1.5 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-900 to-blue-600 text-white flex items-center justify-center shadow-sm">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-900 to-blue-600 text-white flex items-center justify-center shadow-xs">
             <Shield size={16} />
           </div>
           <span className="font-extrabold text-blue-950 text-sm tracking-tight">
@@ -87,18 +91,28 @@ export default function UserHeader({
       </div>
 
       {/* Sisi Kanan: Lacak Tiket, Notifikasi, & Profil User */}
-      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         
-        {/* Tombol Lacak Tiket */}
+        {/* Tombol Lacak Tiket (Desktop: full pill, Mobile: compact circular button) */}
         {onOpenLacak && (
-          <button
-            onClick={onOpenLacak}
-            className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-blue-950 border border-slate-200 px-3 py-1.5 rounded-full transition shadow-2xs"
-            title="Lacak status tiket pengaduan atau COTA"
-          >
-            <Search size={13} className="text-sky-600" />
-            <span>Lacak Tiket</span>
-          </button>
+          <>
+            <button
+              onClick={onOpenLacak}
+              className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-slate-50 hover:bg-slate-100 active:scale-95 text-blue-950 border border-slate-200 px-3 py-1.5 rounded-full transition shadow-2xs"
+              title="Lacak status tiket pengaduan atau COTA"
+            >
+              <Search size={13} className="text-sky-600" />
+              <span>Lacak Tiket</span>
+            </button>
+            <button
+              onClick={onOpenLacak}
+              className="sm:hidden flex items-center justify-center w-[38px] h-[38px] rounded-full bg-slate-50 hover:bg-slate-100 active:scale-95 text-blue-900 border border-slate-200 transition shadow-2xs"
+              title="Lacak Tiket"
+              aria-label="Lacak Tiket"
+            >
+              <Search size={16} className="text-sky-600" />
+            </button>
+          </>
         )}
 
         {/* Dropdown Lonceng Notifikasi */}
@@ -112,20 +126,24 @@ export default function UserHeader({
 
         {/* Status Autentikasi / Profil Pengguna */}
         {isLoggedIn ? (
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full text-xs font-bold text-blue-700 shadow-2xs">
+          <div 
+            onClick={onOpenMobileSidebar}
+            className="flex items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
+            title="Klik untuk melihat menu / profil"
+          >
+            <div className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-blue-700 shadow-2xs transition-colors">
               <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
                 <User size={12} />
               </div>
               <span className="hidden sm:inline max-w-[120px] truncate">
-                {currentUser?.name || 'Ahmad Rifai'}
+                {currentUser?.name || 'Warga'}
               </span>
             </div>
           </div>
         ) : (
           <button
             onClick={onOpenLogin}
-            className="flex items-center gap-1.5 text-xs font-bold bg-blue-900 hover:bg-blue-800 text-white px-3.5 py-1.5 rounded-full transition shadow-sm"
+            className="flex items-center gap-1.5 text-xs font-bold bg-blue-900 hover:bg-blue-800 active:scale-95 text-white px-3 sm:px-3.5 py-1.5 rounded-full transition shadow-sm"
           >
             <User size={13} />
             <span>Masuk</span>

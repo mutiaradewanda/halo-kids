@@ -649,7 +649,7 @@ export default function NotificationDropdown({
                 Layanan Terpadu HaloKids Dinsos
               </span>
               <span style={{ fontWeight: 600, color: '#0b1f5c' }}>
-                {currentUser?.name || 'Ahmad Rifai'}
+                {currentUser?.name || 'Warga'}
               </span>
             </div>
           )}

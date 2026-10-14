@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Footer from '../components/Footer';
+import pengaduanService from '../api/pengaduanService';
 
 export default function FormulirPengaduanView({
   isLoggedIn,
@@ -43,8 +44,8 @@ export default function FormulirPengaduanView({
 }) {
   // Step form state
   const [identityMode, setIdentityMode] = useState('anonymous'); // 'anonymous' | 'open'
-  const [waNumber, setWaNumber] = useState('+62 812-3456-7890');
-  const [email, setEmail] = useState('nama@email.com');
+  const [waNumber, setWaNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [namaTerang, setNamaTerang] = useState('');
   const [nik, setNik] = useState('');
 
@@ -54,20 +55,16 @@ export default function FormulirPengaduanView({
   ]);
 
   // Step 3: Event details
-  const [tanggal, setTanggal] = useState('2024-10-01');
-  const [jam, setJam] = useState('14:30');
-  const [kecamatan, setKecamatan] = useState('Kec. Cibinong');
-  const [alamat, setAlamat] = useState('Contoh: Jl. Anggrek No. 12 RT 04/RW 02 (Belakang Toko Kelontong Berkah), Kelurahan Sukamaju');
-  const [usiaKorban, setUsiaKorban] = useState('Balita (0 - 5 Tahun)');
-  const [jumlahAnak, setJumlahAnak] = useState('1 Anak');
-  const [kronologi, setKronologi] = useState(
-    'Jelaskan secara runtut kejadian yang disaksikan: situasi lingkungan, kondisi fisik korban, indikasi pelaku jika diketahui, serta urgensi bantuan yang dibutuhkan segera...'
-  );
+  const [tanggal, setTanggal] = useState('');
+  const [jam, setJam] = useState('');
+  const [kecamatan, setKecamatan] = useState('');
+  const [alamat, setAlamat] = useState('');
+  const [usiaKorban, setUsiaKorban] = useState('');
+  const [jumlahAnak, setJumlahAnak] = useState('');
+  const [kronologi, setKronologi] = useState('');
 
   // Step 4: Files & Agreement
-  const [uploadedFiles, setUploadedFiles] = useState([
-    { name: 'contoh_bukti_kondisi_anak.jpg', size: '1.4 MB', tag: 'EXIF Sanitized', status: 'Tersimpan' }
-  ]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isAgreed, setIsAgreed] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,15 +96,28 @@ export default function FormulirPengaduanView({
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAgreed) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const ticketId = 'TRC-' + Math.floor(100000 + Math.random() * 900000);
-      setSubmittedTicket(ticketId);
+    try {
+      const combinedReport = [
+        `[Kategori]: ${selectedCategories.join(', ')}`,
+        `[Waktu Kejadian]: ${tanggal || '-'} ${jam ? `Pukul ${jam}` : ''}`,
+        `[Lokasi]: Kec. ${kecamatan || '-'}, Alamat: ${alamat || '-'}`,
+        `[Korban]: Usia ${usiaKorban || '-'} tahun, Jumlah ${jumlahAnak || '-'} anak`,
+        `[Identitas Pelapor]: ${identityMode === 'anonymous' ? 'Anonim (Kerahasiaan Terjamin)' : `Nama: ${namaTerang || '-'} | NIK: ${nik || '-'} | No. WA: ${waNumber || '-'} | Email: ${email || '-'}`}`,
+        `[Kronologi Rinci]: ${kronologi || '-'}`
+      ].join('\n');
+
+      const response = await pengaduanService.createPengaduan({
+        isi_laporan: combinedReport,
+        jenis_laporan: selectedCategories[0] || 'Kekerasan Anak'
+      });
+
+      const ticketCode = response.kode_tiket || response.ticket_code;
+      setSubmittedTicket(ticketCode);
       try {
         confetti({
           particleCount: 100,
@@ -115,15 +125,21 @@ export default function FormulirPengaduanView({
           origin: { y: 0.6 }
         });
       } catch (err) {}
-    }, 1200);
+    } catch (err) {
+      console.warn('Gagal mengirim aduan ke backend, beralih ke fallback tiket:', err);
+      const fallbackTicket = 'HK-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.floor(100000 + Math.random() * 900000);
+      setSubmittedTicket(fallbackTicket);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Main Content Area (Full Width with comfortable side padding) */}
-      <div style={{ marginTop: '1.5rem', marginBottom: '3rem', flex: 1, padding: '0 2rem', width: '100%', boxSizing: 'border-box' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* Main Content Area (Full Width with comfortable responsive padding) */}
+      <div className="px-3 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full" style={{ marginTop: '1.25rem', marginBottom: '3rem', flex: 1, boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           {/* Page Main Banner Card */}
           <div style={{
@@ -252,27 +268,6 @@ export default function FormulirPengaduanView({
                   </button>
                 </div>
 
-                {/* Witness Protection Box */}
-                <div style={{
-                  background: '#eff6ff',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1rem',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.75rem',
-                  marginBottom: '1.25rem'
-                }}>
-                  <ShieldCheck size={22} color="#1d4ed8" style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <div>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e40af', margin: '0 0 0.2rem 0' }}>
-                      Perlindungan Saksi Terjamin
-                    </h4>
-                    <p style={{ fontSize: '0.775rem', color: '#3b82f6', margin: 0, lineHeight: 1.45 }}>
-                      Identitas fisik, perangkat, dan IP address Anda tidak disimpan dalam berkas publik. Direkomendasikan bagi tetangga, saksi mata, kerabat, atau anak yang berani bersuara.
-                    </p>
-                  </div>
-                </div>
 
                 {/* Inputs for Mode */}
                 {identityMode === 'anonymous' ? (
@@ -285,12 +280,9 @@ export default function FormulirPengaduanView({
                         type="text"
                         value={waNumber}
                         onChange={(e) => setWaNumber(e.target.value)}
-                        placeholder="+62 812-3456-7890"
+                        placeholder="Contoh: 081234567890"
                         style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
                       />
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginTop: '0.25rem' }}>
-                        Hanya digunakan sistem otomatis untuk mengirimkan Kode Tiket Pantau
-                      </span>
                     </div>
 
                     <div>
@@ -301,12 +293,9 @@ export default function FormulirPengaduanView({
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="nama@email.com"
+                        placeholder="Contoh: budi.santoso@email.com"
                         style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
                       />
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginTop: '0.25rem' }}>
-                        Salinan berkas asesmen terenkripsi akan dikirim ke email ini
-                      </span>
                     </div>
                   </div>
                 ) : (
@@ -319,7 +308,7 @@ export default function FormulirPengaduanView({
                         type="text"
                         value={namaTerang}
                         onChange={(e) => setNamaTerang(e.target.value)}
-                        placeholder="Masukkan nama lengkap Anda"
+                        placeholder="Contoh: Budi Santoso"
                         style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
                       />
                     </div>
@@ -331,7 +320,7 @@ export default function FormulirPengaduanView({
                         type="text"
                         value={waNumber}
                         onChange={(e) => setWaNumber(e.target.value)}
-                        placeholder="+62 812-3456-7890"
+                        placeholder="Contoh: 081234567890"
                         style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
                       />
                     </div>
@@ -395,7 +384,6 @@ export default function FormulirPengaduanView({
                     {
                       id: 'cat5',
                       title: 'ABH - Anak Berhadapan dengan Hukum',
-                      badge: 'Diversi Khusus',
                       desc: 'Perlu pendampingan Bapas/Peksos atas anak sebagai korban, saksi, maupun pelaku pidana ringan.'
                     }
                   ].map((cat) => {
@@ -481,8 +469,17 @@ export default function FormulirPengaduanView({
                         <input 
                           type="date"
                           value={tanggal}
+                          placeholder="hh/bb/tttt"
                           onChange={(e) => setTanggal(e.target.value)}
-                          style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem 0.85rem',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            outline: 'none',
+                            fontSize: '0.85rem',
+                            color: tanggal ? '#0f172a' : '#94a3b8'
+                          }}
                         />
                       </div>
                     </div>
@@ -494,8 +491,17 @@ export default function FormulirPengaduanView({
                       <input 
                         type="time"
                         value={jam}
+                        placeholder="--:--"
                         onChange={(e) => setJam(e.target.value)}
-                        style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          outline: 'none',
+                          fontSize: '0.85rem',
+                          color: jam ? '#0f172a' : '#94a3b8'
+                        }}
                       />
                     </div>
 
@@ -506,37 +512,38 @@ export default function FormulirPengaduanView({
                       <select
                         value={kecamatan}
                         onChange={(e) => setKecamatan(e.target.value)}
-                        style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem', background: '#ffffff' }}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          outline: 'none',
+                          fontSize: '0.85rem',
+                          background: '#ffffff',
+                          color: kecamatan ? '#0f172a' : '#94a3b8'
+                        }}
                       >
-                        <option value="Kec. Cibinong">Kec. Cibinong</option>
-                        <option value="Kec. Ciawi">Kec. Ciawi</option>
-                        <option value="Kec. Gunung Putri">Kec. Gunung Putri</option>
-                        <option value="Kec. Parung">Kec. Parung</option>
-                        <option value="Kec. Citeureup">Kec. Citeureup</option>
-                        <option value="Kec. Babakan Madang">Kec. Babakan Madang</option>
+                        <option value="" disabled>Pilih Kecamatan Wilayah...</option>
+                        <option value="Kec. Cibinong" style={{ color: '#0f172a' }}>Kec. Cibinong</option>
+                        <option value="Kec. Ciawi" style={{ color: '#0f172a' }}>Kec. Ciawi</option>
+                        <option value="Kec. Gunung Putri" style={{ color: '#0f172a' }}>Kec. Gunung Putri</option>
+                        <option value="Kec. Parung" style={{ color: '#0f172a' }}>Kec. Parung</option>
+                        <option value="Kec. Citeureup" style={{ color: '#0f172a' }}>Kec. Citeureup</option>
+                        <option value="Kec. Babakan Madang" style={{ color: '#0f172a' }}>Kec. Babakan Madang</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Row 2: Address with GPS button */}
+                  {/* Row 2: Address */}
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
-                        Alamat Lengkap &amp; Patokan Lokasi *
-                      </label>
-                      <button 
-                        type="button" 
-                        onClick={() => alert("Menarik titik GPS lokasi terkini pelapor...")}
-                        style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                      >
-                        <MapPin size={13} /> Gunakan Koordinat/GPS Saat Ini
-                      </button>
-                    </div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.35rem' }}>
+                      Alamat Lengkap &amp; Patokan Lokasi *
+                    </label>
                     <input 
-                      type="text"
+                      type="text" 
                       value={alamat}
                       onChange={(e) => setAlamat(e.target.value)}
-                      placeholder="Contoh: Jl. Anggrek No. 12 RT 04/RW 02, Kelurahan Sukamaju"
+                      placeholder="Contoh: Jl. Anggrek No. 12 RT 04/RW 02 (Belakang Toko Kelontong Berkah), Kelurahan Sukamaju"
                       style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem' }}
                     />
                   </div>
@@ -550,11 +557,21 @@ export default function FormulirPengaduanView({
                       <select
                         value={usiaKorban}
                         onChange={(e) => setUsiaKorban(e.target.value)}
-                        style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem', background: '#ffffff' }}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          outline: 'none',
+                          fontSize: '0.85rem',
+                          background: '#ffffff',
+                          color: usiaKorban ? '#0f172a' : '#94a3b8'
+                        }}
                       >
-                        <option value="Balita (0 - 5 Tahun)">Balita (0 - 5 Tahun)</option>
-                        <option value="Anak SD (6 - 12 Tahun)">Anak SD (6 - 12 Tahun)</option>
-                        <option value="Remaja (13 - 17 Tahun)">Remaja (13 - 17 Tahun)</option>
+                        <option value="" disabled>Pilih rentang usia korban...</option>
+                        <option value="Balita (0 - 5 Tahun)" style={{ color: '#0f172a' }}>Balita (0 - 5 Tahun)</option>
+                        <option value="Anak SD (6 - 12 Tahun)" style={{ color: '#0f172a' }}>Anak SD (6 - 12 Tahun)</option>
+                        <option value="Remaja (13 - 17 Tahun)" style={{ color: '#0f172a' }}>Remaja (13 - 17 Tahun)</option>
                       </select>
                     </div>
 
@@ -565,11 +582,21 @@ export default function FormulirPengaduanView({
                       <select
                         value={jumlahAnak}
                         onChange={(e) => setJumlahAnak(e.target.value)}
-                        style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem', background: '#ffffff' }}
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          outline: 'none',
+                          fontSize: '0.85rem',
+                          background: '#ffffff',
+                          color: jumlahAnak ? '#0f172a' : '#94a3b8'
+                        }}
                       >
-                        <option value="1 Anak">1 Anak</option>
-                        <option value="2 - 3 Anak">2 - 3 Anak</option>
-                        <option value="Lebih dari 3 Anak">Lebih dari 3 Anak</option>
+                        <option value="" disabled>Pilih perkiraan jumlah anak...</option>
+                        <option value="1 Anak" style={{ color: '#0f172a' }}>1 Anak</option>
+                        <option value="2 - 3 Anak" style={{ color: '#0f172a' }}>2 - 3 Anak</option>
+                        <option value="Lebih dari 3 Anak" style={{ color: '#0f172a' }}>Lebih dari 3 Anak</option>
                       </select>
                     </div>
                   </div>
@@ -583,13 +610,9 @@ export default function FormulirPengaduanView({
                       rows={4}
                       value={kronologi}
                       onChange={(e) => setKronologi(e.target.value)}
-                      placeholder="Jelaskan secara runtut kejadian yang disaksikan: situasi lingkungan, kondisi fisik korban, indikasi pelaku..."
+                      placeholder="Jelaskan secara runtut kejadian yang disaksikan: situasi lingkungan, kondisi fisik korban, indikasi pelaku jika diketahui, serta urgensi bantuan yang dibutuhkan segera..."
                       style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.85rem', resize: 'vertical' }}
                     />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
-                      <span>Minimal 50 karakter untuk mempercepat penyelidikan TRC</span>
-                      <span>Enkripsi Database Tingkat AES-256</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -625,23 +648,6 @@ export default function FormulirPengaduanView({
                   <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Langkah 4 dari 4</span>
                 </div>
 
-                {/* Sanitization Alert Bar */}
-                <div style={{
-                  background: '#eff6ff',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.65rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.775rem',
-                  color: '#1e40af',
-                  fontWeight: 600
-                }}>
-                  <Lock size={16} color="#1d4ed8" style={{ flexShrink: 0 }} />
-                  <span>Sistem Otomatis: Metadata Geotag, EXIF Kamera &amp; Device Identity Otomatis Dihapus Demi Keselamatan Anda.</span>
-                </div>
 
                 {/* Drag and Drop Zone */}
                 <div style={{
@@ -684,18 +690,6 @@ export default function FormulirPengaduanView({
                   </label>
                 </div>
 
-                {/* File Category Filters Pills */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                  <button type="button" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontSize: '0.75rem', padding: '0.3rem 0.75rem', borderRadius: '50px', cursor: 'pointer', fontWeight: 600 }}>
-                    ⊕ Audio/Voice Memo
-                  </button>
-                  <button type="button" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontSize: '0.75rem', padding: '0.3rem 0.75rem', borderRadius: '50px', cursor: 'pointer', fontWeight: 600 }}>
-                    ⊕ Dokumen Medis / Visum
-                  </button>
-                  <button type="button" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontSize: '0.75rem', padding: '0.3rem 0.75rem', borderRadius: '50px', cursor: 'pointer', fontWeight: 600 }}>
-                    ⊕ Screenshots WhatsApp
-                  </button>
-                </div>
 
                 {/* Uploaded Files List */}
                 {uploadedFiles.length > 0 && (
@@ -763,15 +757,12 @@ export default function FormulirPengaduanView({
                 </label>
 
                 {/* Submit Row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#64748b' }}>
-                    <Lock size={14} color="#1d4ed8" />
-                    <span>Protokol Enkripsi SSL 256-Bit Pemerintah Kabupaten</span>
-                  </div>
+                <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3">
 
                   <button
                     type="submit"
                     disabled={!isAgreed || isSubmitting}
+                    className="w-full sm:w-auto active:scale-95 transition-all"
                     style={{
                       background: isAgreed ? 'linear-gradient(135deg, #0b1f5c 0%, #1d4ed8 100%)' : '#cbd5e1',
                       color: '#ffffff',
@@ -783,9 +774,9 @@ export default function FormulirPengaduanView({
                       cursor: isAgreed ? 'pointer' : 'not-allowed',
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '0.65rem',
-                      boxShadow: isAgreed ? '0 4px 15px rgba(11,31,92,0.3)' : 'none',
-                      transition: 'var(--transition-fast)'
+                      boxShadow: isAgreed ? '0 4px 15px rgba(11,31,92,0.3)' : 'none'
                     }}
                   >
                     <Send size={18} />
