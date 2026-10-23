@@ -4,18 +4,11 @@ import {
   Shield,
   User,
   Search,
-  ChevronRight
+  ChevronRight,
+  Building2
 } from 'lucide-react';
 import NotificationDropdown from './NotificationDropdown';
 
-/**
- * Top Navbar / Header untuk Portal Pengguna HaloKids DINSOS
- * Menggunakan Tailwind CSS:
- * - Sticky top-0 z-30 dengan background white/95 & backdrop-blur-md
- * - Border bawah halus (border-b border-slate-100 shadow-sm)
- * - Breadcrumbs konteks navigasi dinamis
- * - Action buttons: Lacak Tiket, Lonceng Notifikasi, dan Profil/Login User
- */
 export default function UserHeader({
   activeTab = 'beranda',
   onOpenMobileSidebar = () => {},
@@ -23,6 +16,7 @@ export default function UserHeader({
   currentUser = null,
   onOpenLogin,
   onOpenLacak,
+  onSwitchToDashboard,
   onNavigateTab
 }) {
   const getTabTitle = () => {
@@ -113,6 +107,31 @@ export default function UserHeader({
               <Search size={16} className="text-sky-600" />
             </button>
           </>
+        )}
+
+        {/* Tombol Akses Cepat Dashboard jika akun adalah Admin / Super Admin */}
+        {isLoggedIn && (currentUser?.role === 'Super Admin' || currentUser?.roleCode === 'admin' || currentUser?.roleMode === 'superadmin') && onSwitchToDashboard && (
+          <button
+            onClick={onSwitchToDashboard}
+            className="flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 hover:from-rose-500 hover:to-red-500 active:scale-95 text-white px-3 py-1.5 rounded-full shadow-sm transition ring-1 ring-rose-400/50"
+            title="Buka Dinsos Control Center (Super Admin)"
+          >
+            <Shield size={13} className="text-white shrink-0" />
+            <span className="hidden sm:inline">Dashboard Super Admin</span>
+            <span className="sm:hidden">Super Admin</span>
+          </button>
+        )}
+
+        {isLoggedIn && (currentUser?.role === 'Admin Panti' || currentUser?.roleCode === 'pengelola panti' || currentUser?.roleCode === 'pengelola-panti') && onSwitchToDashboard && (
+          <button
+            onClick={onSwitchToDashboard}
+            className="flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 active:scale-95 text-white px-3 py-1.5 rounded-full shadow-sm transition ring-1 ring-amber-400/50"
+            title="Buka Dashboard Admin Panti LKSA"
+          >
+            <Building2 size={13} className="text-white shrink-0" />
+            <span className="hidden sm:inline">Dashboard Admin LKSA</span>
+            <span className="sm:hidden">Admin LKSA</span>
+          </button>
         )}
 
         {/* Dropdown Lonceng Notifikasi */}

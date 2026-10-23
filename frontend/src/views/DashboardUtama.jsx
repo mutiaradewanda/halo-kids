@@ -45,9 +45,16 @@ import {
 } from '../api';
 
 export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUser, volunteerList, setVolunteerList }) {
+  const getRoleMode = (u) => {
+    if (!u) return 'user';
+    const r = (u.role || u.peran || u.roleCode || u.roleMode || '').toLowerCase();
+    if (r === 'super admin' || r === 'admin' || r === 'superadmin') return 'superadmin';
+    if (r === 'admin panti' || r === 'pengelola-panti' || r === 'pengelola panti' || r === 'pantiadmin') return 'pantiadmin';
+    return 'user';
+  };
+
   // Current Active Dashboard Mode: 'user' | 'pantiadmin' | 'superadmin'
-  const initialRole = currentUser?.role === 'Admin Panti' ? 'pantiadmin' : currentUser?.role === 'Super Admin' ? 'superadmin' : 'user';
-  const [dashboardRoleMode, setDashboardRoleMode] = useState(initialRole);
+  const [dashboardRoleMode, setDashboardRoleMode] = useState(() => getRoleMode(currentUser));
 
   // Active Menu Tab for User Publik
   const [userTab, setUserTab] = useState('adopsi'); // 'adopsi' | 'pengaduan' | 'donasi' | 'panti'
@@ -245,9 +252,8 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
   const [actionLoading, setActionLoading] = useState({});
 
   useEffect(() => {
-    if (currentUser?.role) {
-      const newRole = currentUser.role === 'Admin Panti' ? 'pantiadmin' : currentUser.role === 'Super Admin' ? 'superadmin' : 'user';
-      setDashboardRoleMode(newRole);
+    if (currentUser) {
+      setDashboardRoleMode(getRoleMode(currentUser));
     }
   }, [currentUser]);
 
@@ -742,6 +748,121 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
             <span style={{ fontSize: '0.7rem', color: '#bfdbfe' }}>
               Portal Penggunaan Fitur Interaktif • Dinas Sosial Kabupaten
             </span>
+          </div>
+        </div>
+
+        {/* Right Header: Role Mode Switcher & User Profile */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          
+          {/* Mode Switcher Tabs */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'rgba(0, 0, 0, 0.3)',
+            padding: '0.2rem',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.15)'
+          }}>
+            <button
+              onClick={() => setDashboardRoleMode('superadmin')}
+              style={{
+                background: dashboardRoleMode === 'superadmin' ? '#e11d48' : 'transparent',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '7px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: dashboardRoleMode === 'superadmin' ? '0 2px 8px rgba(225, 29, 72, 0.4)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+              title="Mode Super Admin (Dinas Sosial)"
+            >
+              <ShieldCheck size={14} color={dashboardRoleMode === 'superadmin' ? '#fff' : '#fda4af'} />
+              <span>Super Admin</span>
+            </button>
+
+            <button
+              onClick={() => setDashboardRoleMode('pantiadmin')}
+              style={{
+                background: dashboardRoleMode === 'pantiadmin' ? '#d97706' : 'transparent',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '7px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: dashboardRoleMode === 'pantiadmin' ? '0 2px 8px rgba(217, 119, 6, 0.4)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+              title="Mode Admin Panti Asuhan (LKSA)"
+            >
+              <Building2 size={14} color={dashboardRoleMode === 'pantiadmin' ? '#fff' : '#fcd34d'} />
+              <span>Admin LKSA</span>
+            </button>
+
+            <button
+              onClick={() => setDashboardRoleMode('user')}
+              style={{
+                background: dashboardRoleMode === 'user' ? '#2563eb' : 'transparent',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '7px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: dashboardRoleMode === 'user' ? '0 2px 8px rgba(37, 99, 235, 0.4)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+              title="Mode Fitur Publik Warga"
+            >
+              <User size={14} color={dashboardRoleMode === 'user' ? '#fff' : '#93c5fd'} />
+              <span>User Publik</span>
+            </button>
+          </div>
+
+          {/* User profile & Logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '0.75rem' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.775rem', fontWeight: 800, color: '#ffffff', lineHeight: 1.2 }}>
+                {currentUser?.name || 'Admin Dinsos'}
+              </div>
+              <div style={{ fontSize: '0.675rem', color: '#93c5fd' }}>
+                {currentUser?.role || (dashboardRoleMode === 'superadmin' ? 'Super Admin' : dashboardRoleMode === 'pantiadmin' ? 'Admin Panti' : 'User Publik')}
+              </div>
+            </div>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Keluar / Logout"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  padding: '0.4rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <LogOut size={15} />
+              </button>
+            )}
           </div>
         </div>
 

@@ -29,7 +29,16 @@ export default function App() {
       const sess = localStorage.getItem('halokids_active_session');
       if (sess) {
         const user = JSON.parse(sess);
-        if (user.role === 'Admin Panti' || user.role === 'Super Admin') {
+        const r = (user.role || user.peran || user.roleCode || user.roleMode || '').toLowerCase();
+        if (
+          r === 'admin panti' || 
+          r === 'super admin' || 
+          r === 'admin' || 
+          r === 'superadmin' || 
+          r === 'pengelola-panti' || 
+          r === 'pengelola panti' || 
+          r === 'pantiadmin'
+        ) {
           return 'dashboard';
         }
       }
@@ -335,7 +344,10 @@ export default function App() {
         <DashboardUtama 
           currentUser={currentUser}
           onLogout={handleLogout}
-          onSwitchToLanding={handleLogout}
+          onSwitchToLanding={() => {
+            setViewMode('landing');
+            setActiveTab('beranda');
+          }}
           volunteerList={volunteerRegistrations}
           setVolunteerList={setVolunteerRegistrations}
         />
@@ -390,6 +402,7 @@ export default function App() {
               setViewMode(newMode);
               setActiveTab(newTab);
             }}
+            onSwitchToDashboard={() => setViewMode('dashboard')}
             onOpenLacak={() => setIsLacakOpen(true)}
             onOpenLogin={() => setIsLoginOpen(true)}
             onLogout={handleLogout}
@@ -408,9 +421,14 @@ export default function App() {
               currentUser={currentUser}
               onOpenLogin={() => setIsLoginOpen(true)}
               onOpenLacak={() => setIsLacakOpen(true)}
+              onSwitchToDashboard={() => setViewMode('dashboard')}
               onNavigateTab={(tab) => {
-                setViewMode(tab === 'beranda' ? 'landing' : tab);
-                setActiveTab(tab);
+                if (tab === 'dashboard') {
+                  setViewMode('dashboard');
+                } else {
+                  setViewMode(tab === 'beranda' ? 'landing' : tab);
+                  setActiveTab(tab);
+                }
               }}
             />
 

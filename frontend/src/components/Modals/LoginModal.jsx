@@ -16,125 +16,11 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
   Phone
 } from 'lucide-react';
+import authService from '../../api/authService';
 
-/**
- * Akun Bawaan (Default Dummy Accounts) untuk pengujian langsung:
- * 1. Warga: ahmad@gmail.com (sandi: 123456)
- * 2. Panti: panti@panti-alikhlas.or.id (sandi: 123456)
- * 3. Dinsos: budi@dinsos.go.id (sandi: 123456)
- */
-export const DEFAULT_ACCOUNTS = [
-  {
-    name: 'Mutiara Dewanda',
-    email: 'mutiara@gmail.com',
-    password: '12345678',
-    phone: '0812-3456-7890',
-    role: 'User Publik',
-    roleCode: 'masyarakat',
-    roleLabel: 'Masyarakat / Warga Umum',
-    nip: 'Masyarakat Terverifikasi'
-  },
-  {
-    name: 'Mutiara Dewanda',
-    email: 'mutiara@panti.or.id',
-    password: '12345678',
-    phone: '0813-8877-6655',
-    role: 'Admin Panti',
-    roleCode: 'pengelola panti',
-    roleLabel: 'Pengelola Panti Asuhan / LKSA',
-    nip: 'Pengurus Resmi Lembaga LKSA'
-  },
-  {
-    name: 'Mutiara Dewanda',
-    email: 'mutiara@dinsos.go.id',
-    password: '12345678',
-    phone: '0811-2233-4455',
-    role: 'Super Admin',
-    roleCode: 'admin',
-    roleLabel: 'Dinas Sosial (Super Admin)',
-    nip: 'Dinas Sosial Kabupaten (Super Admin)'
-  },
-  {
-    name: 'Ahmad Rifai',
-    email: 'ahmad@gmail.com',
-    password: '123456',
-    phone: '0812-9876-5432',
-    role: 'User Publik',
-    roleCode: 'masyarakat',
-    roleLabel: 'Masyarakat / Warga Umum',
-    nip: 'Masyarakat Terverifikasi'
-  },
-  {
-    name: 'Ust. H. Syarifudin (Pengurus)',
-    email: 'panti@panti-alikhlas.or.id',
-    password: '123456',
-    phone: '0813-8877-6655',
-    role: 'Admin Panti',
-    roleCode: 'pengelola panti',
-    roleLabel: 'Pengelola Panti Asuhan / LKSA',
-    nip: 'Pengurus Resmi Lembaga LKSA'
-  },
-  {
-    name: 'Budi Santoso, S.Sos',
-    email: 'budi@dinsos.go.id',
-    password: '123456',
-    phone: '0811-2233-4455',
-    role: 'Super Admin',
-    roleCode: 'admin',
-    roleLabel: 'Dinas Sosial (Super Admin)',
-    nip: 'NIP. 19820514 200801 1 004 (Dinsos PIPA)'
-  }
-];
-
-const STORAGE_USERS_KEY = 'halokids_registered_users';
 const STORAGE_SESSION_KEY = 'halokids_active_session';
-
-/**
- * Helper untuk sinkronisasi daftar akun dengan localStorage
- */
-function getStoredAccounts() {
-  try {
-    const raw = localStorage.getItem(STORAGE_USERS_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(DEFAULT_ACCOUNTS));
-      return DEFAULT_ACCOUNTS;
-    }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(DEFAULT_ACCOUNTS));
-      return DEFAULT_ACCOUNTS;
-    }
-    // Pastikan akun default selalu ada
-    const combined = [...parsed];
-    DEFAULT_ACCOUNTS.forEach((def) => {
-      if (!combined.some((a) => a.email.toLowerCase() === def.email.toLowerCase())) {
-        combined.push(def);
-      }
-    });
-    return combined;
-  } catch (err) {
-    console.error('Gagal membaca akun dari localStorage:', err);
-    return DEFAULT_ACCOUNTS;
-  }
-}
-
-function saveAccountToStorage(account) {
-  try {
-    const current = getStoredAccounts();
-    const updated = [
-      ...current.filter((a) => a.email.toLowerCase() !== account.email.toLowerCase()),
-      account
-    ];
-    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(updated));
-    return updated;
-  } catch (err) {
-    console.error('Gagal menyimpan akun ke localStorage:', err);
-    return DEFAULT_ACCOUNTS;
-  }
-}
 
 /**
  * Konfigurasi 3 Pintu Masuk Peran Akses Portal HaloKids DINSOS
@@ -178,8 +64,6 @@ const PORTAL_ROLES = [
   }
 ];
 
-import authService from '../../api/authService';
-
 export default function LoginModal({
   isOpen,
   onClose,
@@ -188,9 +72,6 @@ export default function LoginModal({
   onLoginSuccess,
   onLogout
 }) {
-  // State Akun Terdaftar (Tersinkronisasi LocalStorage)
-  const [accounts, setAccounts] = useState(DEFAULT_ACCOUNTS);
-
   // State Langkah Alur (Multi-Step SSO Flow)
   const [selectedRole, setSelectedRole] = useState(null); // 'masyarakat' | 'pengelola panti' | 'admin' | null
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -213,16 +94,6 @@ export default function LoginModal({
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
   const [regError, setRegError] = useState(null);
-
-  // State Akun Demo Helper Accordion
-  const [showDemoAccounts, setShowDemoAccounts] = useState(false);
-
-  // Load akun dari localStorage saat modal dibuka
-  useEffect(() => {
-    if (isOpen) {
-      setAccounts(getStoredAccounts());
-    }
-  }, [isOpen]);
 
   // Lock body scroll saat modal aktif
   useEffect(() => {
@@ -264,23 +135,11 @@ export default function LoginModal({
     setShowRegPassword(false);
     setShowRegConfirmPassword(false);
     setRegError(null);
-    setShowDemoAccounts(false);
     if (onClose) onClose();
   };
 
   // Role aktif yang dipilih di Langkah 1
   const activeRoleObj = PORTAL_ROLES.find((r) => r.key === selectedRole) || PORTAL_ROLES[0];
-
-  // Helper untuk quick-fill akun dummy bawaan
-  const handleUseDemoAccount = (demoAcc) => {
-    setSelectedRole(demoAcc.roleCode);
-    setIsRegisterMode(false);
-    setEmailInput(demoAcc.email);
-    setPassword(demoAcc.password);
-    setLoginEmailError(null);
-    setLoginPasswordError(null);
-    setLoginSuccessNotice(`Kredensial akun [${demoAcc.role}] telah dimuat. Silakan tekan tombol Masuk.`);
-  };
 
   // =========================================================================
   // LOGIKA VALIDASI LOGIN DENGAN FASTAPI BACKEND
@@ -312,49 +171,36 @@ export default function LoginModal({
       const result = await authService.login(cleanEmail, password);
       setIsLoading(false);
 
+      // Pastikan peran akun cocok jika pengguna memilih portal khusus admin/panti
+      const userRole = (result.user?.roleCode || result.user?.peran || result.user?.role || '').toLowerCase();
+      if (selectedRole === 'admin' && !['admin', 'super admin', 'superadmin'].includes(userRole)) {
+        authService.logout();
+        setLoginEmailError(`Akun ${cleanEmail} terdaftar sebagai ${result.user?.roleLabel || result.user?.role}, bukan Super Admin (Dinas Sosial).`);
+        return;
+      }
+      if (selectedRole === 'pengelola panti' && !['pengelola-panti', 'pengelola panti', 'admin panti', 'pantiadmin'].includes(userRole)) {
+        authService.logout();
+        setLoginEmailError(`Akun ${cleanEmail} terdaftar sebagai ${result.user?.roleLabel || result.user?.role}, bukan Pengelola LKSA / Admin Panti.`);
+        return;
+      }
+
       if (onLoginSuccess) {
         onLoginSuccess(result.user);
       }
       handleCloseModal();
     } catch (apiErr) {
-      console.warn('API Login error, mencoba fallback storage lokal jika offline:', apiErr);
-
-      // Cek apakah akun demo lokal cocok jika backend belum dinyalakan
-      const currentAccounts = getStoredAccounts();
-      const matchedAccount = currentAccounts.find(
-        (acc) => acc.email.toLowerCase() === cleanEmail
-      );
-
-      if (matchedAccount && matchedAccount.password === password && (!apiErr.response || apiErr.response.status >= 500)) {
-        setIsLoading(false);
-        const activeUserSession = {
-          ...matchedAccount,
-          loggedInAt: new Date().toISOString()
-        };
-        try {
-          localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(activeUserSession));
-        } catch (err) {
-          console.error(err);
-        }
-        if (onLoginSuccess) {
-          onLoginSuccess(activeUserSession);
-        }
-        handleCloseModal();
-        return;
-      }
-
       setIsLoading(false);
       const errDetail = apiErr.friendlyMessage || apiErr.response?.data?.detail;
       setLoginPasswordError(
-        typeof errDetail === 'string' 
-          ? errDetail 
-          : 'Email atau kata sandi tidak cocok. Pastikan backend FastAPI sudah berjalan di http://localhost:8000.'
+        typeof errDetail === 'string'
+          ? errDetail
+          : 'Email atau kata sandi tidak cocok. Silakan periksa kembali kredensial Anda.'
       );
     }
   };
 
   // =========================================================================
-  // LOGIKA REGISTRASI AKUN BARU KE FASTAPI BACKEND (WARGA)
+  // LOGIKA REGISTRASI AKUN BARU KE FASTAPI BACKEND
   // =========================================================================
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
@@ -392,7 +238,6 @@ export default function LoginModal({
 
     try {
       const targetRoleCode = selectedRole === 'pengelola panti' ? 'pengelola-panti' : selectedRole === 'admin' ? 'admin' : 'masyarakat';
-      const targetRoleLabel = selectedRole === 'pengelola panti' ? 'Admin Panti' : selectedRole === 'admin' ? 'Super Admin' : 'User Publik';
 
       // Panggil endpoint registrasi FastAPI: POST /api/auth/register
       await authService.register({
@@ -403,26 +248,11 @@ export default function LoginModal({
         role: targetRoleCode
       });
 
-      // Simpan juga ke cache akun demo lokal
-      const newAccountObj = {
-        name: cleanName,
-        email: cleanEmail,
-        password: regPassword,
-        phone: regPhone.trim() || '0812-0000-0000',
-        role: targetRoleLabel,
-        roleCode: targetRoleCode,
-        roleLabel: selectedRole === 'pengelola panti' ? 'Pengelola Panti Asuhan / LKSA' : selectedRole === 'admin' ? 'Dinas Sosial (Super Admin)' : 'Masyarakat / Warga Umum',
-        nip: selectedRole === 'admin' ? 'Petugas Dinsos Terdaftar' : selectedRole === 'pengelola panti' ? 'Pengurus Lembaga LKSA' : 'Masyarakat Terdaftar API',
-        registeredAt: new Date().toISOString()
-      };
-      saveAccountToStorage(newAccountObj);
-      setAccounts(getStoredAccounts());
-
       setIsLoading(false);
       setIsRegisterMode(false);
       setEmailInput(cleanEmail);
       setPassword(regPassword);
-      setLoginSuccessNotice('Pendaftaran berhasil ke backend! Silakan masuk dengan akun baru Anda.');
+      setLoginSuccessNotice('Pendaftaran berhasil! Silakan masuk dengan akun baru Anda.');
     } catch (apiErr) {
       setIsLoading(false);
       const errDetail = apiErr.friendlyMessage || apiErr.response?.data?.detail;
@@ -502,6 +332,41 @@ export default function LoginModal({
                 </p>
               </div>
 
+              {/* JIKA SUDAH SUPER ADMIN, TOMBOL MASUK KE DASHBOARD */}
+              {(currentUser?.role === 'Super Admin' || currentUser?.roleCode === 'admin' || currentUser?.peran === 'admin') ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloseModal();
+                    if (onLoginSuccess) onLoginSuccess(currentUser);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-extrabold text-xs transition shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <Shield size={16} />
+                  <span>Buka Dashboard Super Admin (Dinsos)</span>
+                </button>
+              ) : (
+                /* JIKA MASIH LOGIN SEBAGAI WARGA / USER LAIN */
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      localStorage.removeItem(STORAGE_SESSION_KEY);
+                    } catch (e) {}
+                    if (onLogout) onLogout();
+                    setSelectedRole('admin');
+                    setEmailInput('');
+                    setPassword('');
+                    setLoginEmailError(null);
+                    setLoginPasswordError(null);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <KeyRound size={14} />
+                  <span>Ganti Akun & Masuk sebagai Super Admin</span>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   try {
@@ -512,7 +377,7 @@ export default function LoginModal({
                   if (onLogout) onLogout();
                   handleCloseModal();
                 }}
-                className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition border border-rose-200 shadow-2xs"
+                className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-300 shadow-2xs"
               >
                 Keluar (Logout) Akun
               </button>
@@ -620,7 +485,13 @@ export default function LoginModal({
                           <input
                             id="login-email"
                             type="email"
-                            placeholder="Contoh: budi.santoso@email.com"
+                            placeholder={
+                              selectedRole === 'pengelola panti'
+                                ? 'admin@panti.or.id'
+                                : selectedRole === 'admin'
+                                ? 'petugas@dinsos.go.id'
+                                : 'nama@email.com'
+                            }
                             value={emailInput}
                             onChange={(e) => {
                               setEmailInput(e.target.value);
@@ -662,7 +533,7 @@ export default function LoginModal({
                           <input
                             id="login-password"
                             type={showPassword ? 'text' : 'password'}
-                            placeholder="Contoh: Masukkan kata sandi"
+                            placeholder="Masukkan kata sandi"
                             value={password}
                             onChange={(e) => {
                               setPassword(e.target.value);
@@ -741,13 +612,6 @@ export default function LoginModal({
                           </button>
                         </span>
                       </div>
-
-                      {/* Quick-test credentials hint */}
-                      <div className="pt-2 text-center">
-                        <span className="text-[10px] text-slate-400">
-                          Pengujian: Gunakan email terdaftar &amp; kata sandi (contoh: <code>123456</code>)
-                        </span>
-                      </div>
                     </form>
                   ) : (
                     /* ================= FORM REGISTRASI (DAFTAR AKUN BARU) ================= */
@@ -804,10 +668,10 @@ export default function LoginModal({
                             type="email"
                             placeholder={
                               selectedRole === 'pengelola panti'
-                                ? 'Contoh: admin@panti.or.id'
+                                ? 'admin@panti.or.id'
                                 : selectedRole === 'admin'
-                                ? 'Contoh: petugas@dinsos.go.id'
-                                : 'Contoh: budi.santoso@email.com'
+                                ? 'petugas@dinsos.go.id'
+                                : 'nama@email.com'
                             }
                             value={regEmail}
                             onChange={(e) => setRegEmail(e.target.value)}
@@ -844,7 +708,7 @@ export default function LoginModal({
                           <div className="relative">
                             <input
                               type={showRegPassword ? 'text' : 'password'}
-                              placeholder="Contoh: Minimal 6 karakter"
+                              placeholder="Minimal 6 karakter"
                               value={regPassword}
                               onChange={(e) => setRegPassword(e.target.value)}
                               required
@@ -868,7 +732,7 @@ export default function LoginModal({
                           <div className="relative">
                             <input
                               type={showRegConfirmPassword ? 'text' : 'password'}
-                              placeholder="Contoh: Ulangi kata sandi"
+                              placeholder="Ulangi kata sandi"
                               value={regConfirmPassword}
                               onChange={(e) => setRegConfirmPassword(e.target.value)}
                               required

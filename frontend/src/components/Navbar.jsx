@@ -178,6 +178,33 @@ export default function Navbar({
           {/* Login / User Profile Controls */}
           {isLoggedIn ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} className="desktop-only">
+              {/* Tombol Akses Dashboard Admin / Super Admin */}
+              {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin Panti') && onSwitchToDashboard && (
+                <button
+                  onClick={onSwitchToDashboard}
+                  style={{
+                    background: currentUser?.role === 'Super Admin'
+                      ? 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)'
+                      : 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '0.4rem 0.85rem',
+                    borderRadius: '50px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                  }}
+                  title={`Buka Dashboard ${currentUser?.role}`}
+                >
+                  <LayoutDashboard size={14} />
+                  <span>Dashboard {currentUser?.role}</span>
+                </button>
+              )}
+
               <div style={{
                 background: '#eff6ff',
                 border: '1px solid #bfdbfe',

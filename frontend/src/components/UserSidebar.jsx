@@ -21,6 +21,7 @@ export default function UserSidebar({
   activeTab = 'beranda',
   viewMode = 'landing',
   onNavigate,
+  onSwitchToDashboard,
   onOpenLacak,
   onOpenLogin,
   onLogout,
@@ -29,6 +30,9 @@ export default function UserSidebar({
   setMobileOpen = () => {}
 }) {
   const [collapsed, setCollapsed] = useState(false);
+
+  const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.roleCode === 'admin' || currentUser?.roleMode === 'superadmin';
+  const isAdminPanti = currentUser?.role === 'Admin Panti' || currentUser?.roleCode === 'pengelola panti' || currentUser?.roleCode === 'pengelola-panti';
 
   const mainNavItems = [
     {
@@ -270,6 +274,134 @@ export default function UserSidebar({
 
           {/* Navigation Section */}
           <div style={{ padding: collapsed ? '0.75rem 0.5rem' : '1rem 0.85rem' }}>
+            {/* SPECIAL ADMIN ACCESS PANEL FOR SUPER ADMIN */}
+            {isSuperAdmin && (
+              <div style={{ marginBottom: '0.85rem' }}>
+                {!collapsed && (
+                  <div
+                    style={{
+                      fontSize: '0.675rem',
+                      fontWeight: 800,
+                      color: '#fb7185',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: '0.45rem',
+                      paddingLeft: '0.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>Otoritas Dinsos</span>
+                    <span style={{ fontSize: '0.575rem', background: 'rgba(244, 63, 94, 0.25)', color: '#fda4af', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                      SUPER ADMIN
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    if (onSwitchToDashboard) {
+                      onSwitchToDashboard();
+                    } else if (onNavigate) {
+                      onNavigate('dashboard', 'dashboard');
+                    }
+                    setMobileOpen(false);
+                  }}
+                  title={collapsed ? 'Buka Dashboard Super Admin (Dinsos)' : undefined}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: collapsed ? 'center' : 'space-between',
+                    width: '100%',
+                    padding: collapsed ? '0.75rem 0.5rem' : '0.75rem 0.85rem',
+                    borderRadius: '11px',
+                    border: '1px solid rgba(244, 63, 94, 0.45)',
+                    background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.4) 0%, rgba(159, 18, 57, 0.5) 100%)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.filter = 'brightness(1.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.filter = 'none';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+                    <Shield size={19} color="#fb7185" strokeWidth={2.5} />
+                    {!collapsed && <span>Dinsos Control Center</span>}
+                  </div>
+                  {!collapsed && (
+                    <span style={{ fontSize: '0.65rem', background: '#e11d48', color: '#fff', padding: '0.15rem 0.45rem', borderRadius: '5px', fontWeight: 800 }}>
+                      BUKA →
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* SPECIAL ADMIN ACCESS PANEL FOR ADMIN PANTI */}
+            {isAdminPanti && (
+              <div style={{ marginBottom: '0.85rem' }}>
+                {!collapsed && (
+                  <div
+                    style={{
+                      fontSize: '0.675rem',
+                      fontWeight: 800,
+                      color: '#fcd34d',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      marginBottom: '0.45rem',
+                      paddingLeft: '0.5rem'
+                    }}
+                  >
+                    <span>Pengelola LKSA</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    if (onSwitchToDashboard) {
+                      onSwitchToDashboard();
+                    } else if (onNavigate) {
+                      onNavigate('dashboard', 'dashboard');
+                    }
+                    setMobileOpen(false);
+                  }}
+                  title={collapsed ? 'Buka Dashboard Admin LKSA' : undefined}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: collapsed ? 'center' : 'space-between',
+                    width: '100%',
+                    padding: collapsed ? '0.75rem 0.5rem' : '0.75rem 0.85rem',
+                    borderRadius: '11px',
+                    border: '1px solid rgba(245, 158, 11, 0.45)',
+                    background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.35) 0%, rgba(180, 83, 9, 0.45) 100%)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(217, 119, 6, 0.3)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+                    <Building2 size={19} color="#fcd34d" strokeWidth={2.5} />
+                    {!collapsed && <span>Panel Admin LKSA</span>}
+                  </div>
+                  {!collapsed && (
+                    <span style={{ fontSize: '0.65rem', background: '#d97706', color: '#fff', padding: '0.15rem 0.45rem', borderRadius: '5px', fontWeight: 800 }}>
+                      BUKA →
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* Label Group 1 */}
             {!collapsed && (
               <div
@@ -283,7 +415,7 @@ export default function UserSidebar({
                   paddingLeft: '0.5rem'
                 }}
               >
-                Menu Layanan
+                Menu Layanan Publik
               </div>
             )}
 
