@@ -138,6 +138,10 @@ export default function VolunteerRegistrationView({
         onAddVolunteer(newVolunteerData);
       }
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('halokids:data_updated', { detail: { type: 'relawan' } }));
+      }
+
       setSubmittedTicket(newVolunteerData);
       triggerConfetti();
     } catch (err) {

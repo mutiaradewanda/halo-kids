@@ -239,6 +239,11 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
   const [userTrackResult, setUserTrackResult] = useState(null);
   const [isTrackingTicket, setIsTrackingTicket] = useState(false);
 
+  // Additional End-to-End Live States
+  const [adminDonations, setAdminDonations] = useState([]);
+  const [pantiAdoptions, setPantiAdoptions] = useState([]);
+  const [actionLoading, setActionLoading] = useState({});
+
   useEffect(() => {
     if (currentUser?.role) {
       const newRole = currentUser.role === 'Admin Panti' ? 'pantiadmin' : currentUser.role === 'Super Admin' ? 'superadmin' : 'user';
@@ -303,15 +308,34 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
               setPantiCashIncome(rawDonasi.map(d => ({
                 id: `TRX-${d.id}`,
                 rawId: d.id,
-                date: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID') : 'Hari ini',
-                donor: d.jenis_donasi === 'uang' ? `Donatur #${d.id_user}` : `Paket Barang (#${d.id_user})`,
-                amount: d.jenis_donasi === 'uang' ? `Rp ${Number(d.jumlah_nominal).toLocaleString('id-ID')}` : `${d.nama_barang || 'Logistik'} (${d.jumlah_barang || 1} ${d.satuan_barang || 'Paket'})`,
+                date: d.tanggal_donasi ? new Date(d.tanggal_donasi).toLocaleDateString('id-ID') : 'Hari ini',
+                donor: d.id_user ? `Donatur #${d.id_user}` : 'Warga Umum',
+                amount: d.jenis_donasi === 'uang' ? `Rp ${Number(d.jumlah_nominal).toLocaleString('id-ID')}` : `${d.nama_barang || 'Paket Logistik'} (${d.jumlah_barang || 1} ${d.satuan_barang || 'Paket'})`,
                 program: d.jenis_donasi === 'uang' ? 'Donasi Uang Masuk' : 'Donasi Logistik Panti',
+                jenis: d.jenis_donasi,
+                bukti_transfer: d.bukti_transfer,
                 status: d.status_verifikasi
               })));
             }
           } catch (dErr) {
             console.warn('Panti donation sync fallback:', dErr);
+          }
+
+          // 3. Ambil Permohonan Adopsi Masuk Panti dari API
+          try {
+            const rawPantiAdoptions = await pantiService.getPantiAdoptions();
+            if (isMounted && Array.isArray(rawPantiAdoptions) && rawPantiAdoptions.length > 0) {
+              setPantiAdoptions(rawPantiAdoptions.map(a => ({
+                id: `PIPA-2024-${a.id}`,
+                rawId: a.id,
+                applicant: a.nama_pemohon,
+                targetChild: 'Anak Asuh Panti',
+                originPanti: 'LKSA Kasih Bunda Mandiri',
+                status: a.status === 'diverifikasi' ? 'Disetujui / Rekomendasi Terbit' : a.status === 'ditolak' ? 'Ditolak' : 'Menunggu Verifikasi Berkas Awal'
+              })));
+            }
+          } catch (adpErr) {
+            console.warn('Panti adoptions sync fallback:', adpErr);
           }
         } else if (dashboardRoleMode === 'superadmin') {
           // 1. Ambil Antrean Adopsi COTA
@@ -361,13 +385,63 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
           } catch (vErr) {
             console.warn('Volunteer admin sync fallback:', vErr);
           }
+
+          // 3. Ambil Seluruh Data Donasi Masuk (Audit Donasi Super Admin)
+          try {
+            const rawDonations = await donasiService.getAdminDonations();
+            if (isMounted && Array.isArray(rawDonations)) {
+              setAdminDonations(rawDonations.map(d => ({
+                id: `DNS-${d.id}`,
+                rawId: d.id,
+                date: d.tanggal_donasi ? new Date(d.tanggal_donasi).toLocaleDateString('id-ID') : 'Hari ini',
+                donor: d.id_user ? `Donatur #${d.id_user}` : 'Warga Anonim',
+                panti: d.panti_asuhan?.nama_panti || `LKSA Panti #${d.id_panti || 1}`,
+                jenis: d.jenis_donasi,
+                amount: d.jenis_donasi === 'uang' ? `Rp ${Number(d.jumlah_nominal).toLocaleString('id-ID')}` : `${d.nama_barang || 'Paket Logistik'} (${d.jumlah_barang || 1} ${d.satuan_barang || 'Paket'})`,
+                bukti_transfer: d.bukti_transfer,
+                status: d.status_verifikasi
+              })));
+            }
+          } catch (dErr) {
+            console.warn('Admin donations sync fallback:', dErr);
+          }
+
+          // 4. Ambil Seluruh Pengaduan Masuk (Monitoring Kedaruratan)
+          try {
+            const rawReports = await pengaduanService.getAdminPengaduan();
+            if (isMounted && Array.isArray(rawReports) && rawReports.length > 0) {
+              setLostChildReports(rawReports.map(r => ({
+                id: r.kode_tiket || `HK-${r.id}`,
+                rawId: r.id,
+                childName: r.jenis_laporan || 'Laporan Pengaduan Anak',
+                reporter: r.id_user ? `Warga #${r.id_user}` : 'Pelapor Publik',
+                location: 'Wilayah Kabupaten',
+                date: r.tanggal_pengaduan ? new Date(r.tanggal_pengaduan).toLocaleDateString('id-ID') : 'Hari ini',
+                status: r.status === 'selesai' ? 'Selesai / Ditangani' : r.status === 'diproses' ? 'Eskalasi TRC & Kepolisian' : 'Baru Masuk / Menunggu Tindakan',
+                officer: 'Tim Dinsos',
+                isi_laporan: r.isi_laporan
+              })));
+            }
+          } catch (rErr) {
+            console.warn('Admin reports sync fallback:', rErr);
+          }
         }
       } catch (globalErr) {
         console.warn('Dashboard sync error:', globalErr);
       }
     }
     syncBackendData();
-    return () => { isMounted = false; };
+
+    // Event listener untuk auto update real-time saat form publik submit data
+    const handleDataUpdated = () => {
+      syncBackendData();
+    };
+    window.addEventListener('halokids:data_updated', handleDataUpdated);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('halokids:data_updated', handleDataUpdated);
+    };
   }, [dashboardRoleMode, currentUser]);
 
   const handleTrackUserTicket = async (e) => {
@@ -394,6 +468,8 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
   };
 
   const handleApproveAdopsi = async (id) => {
+    if (actionLoading[id]) return;
+    setActionLoading(prev => ({ ...prev, [id]: true }));
     const app = adopsiApplications.find(a => a.id === id);
     if (app?.rawId) {
       try {
@@ -405,11 +481,101 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
     setAdopsiApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'SK Pengangkatan Anak Terbit (Disetujui)' } : a));
     showToast(`Permohonan Adopsi ${id} Resmi Disetujui melalui Sidang PIPA Dinsos!`);
     triggerConfetti();
+    setActionLoading(prev => ({ ...prev, [id]: false }));
   };
 
-  const handleEskalasiReport = (id) => {
-    setLostChildReports(prev => prev.map(r => r.id === id ? { ...r, status: 'Eskalasi TRC & Kepolisian' } : r));
+  const handleRejectAdopsi = async (id) => {
+    if (actionLoading[id]) return;
+    setActionLoading(prev => ({ ...prev, [id]: true }));
+    const app = adopsiApplications.find(a => a.id === id);
+    if (app?.rawId) {
+      try {
+        await adopsiService.updateAdoptionStatus(app.rawId, 'ditolak');
+      } catch (err) {
+        console.warn('API update adopsi fallback:', err);
+      }
+    }
+    setAdopsiApplications(prev => prev.map(a => a.id === id ? { ...a, status: 'Berkas Ditolak Sidang PIPA' } : a));
+    showToast(`Permohonan Adopsi ${id} DITOLAK.`);
+    setActionLoading(prev => ({ ...prev, [id]: false }));
+  };
+
+  const handleVerifyDonationAdmin = async (donationId, newStatus) => {
+    if (actionLoading[donationId]) return;
+    setActionLoading(prev => ({ ...prev, [donationId]: true }));
+    try {
+      await donasiService.updateDonasiStatus(donationId, newStatus);
+      setAdminDonations(prev => prev.map(d => d.rawId === donationId ? { ...d, status: newStatus } : d));
+      showToast(`Donasi #${donationId} berhasil di-${newStatus === 'terverifikasi' ? 'setujui' : 'tolak'}!`);
+      if (newStatus === 'terverifikasi') triggerConfetti();
+    } catch (err) {
+      showToast(err.friendlyMessage || `Gagal memperbarui status donasi #${donationId}`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [donationId]: false }));
+    }
+  };
+
+  const handleVerifyDonationPanti = async (donationId, newStatus) => {
+    if (actionLoading[donationId]) return;
+    setActionLoading(prev => ({ ...prev, [donationId]: true }));
+    try {
+      await pantiService.updateDonationStatus(donationId, newStatus);
+      setPantiCashIncome(prev => prev.map(d => d.rawId === donationId ? { ...d, status: newStatus } : d));
+      showToast(`Donasi #${donationId} berhasil ${newStatus === 'terverifikasi' ? 'diterima' : 'ditolak'} oleh panti!`);
+      if (newStatus === 'terverifikasi') triggerConfetti();
+    } catch (err) {
+      showToast(err.friendlyMessage || `Gagal memperbarui status donasi`);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [donationId]: false }));
+    }
+  };
+
+  const handlePantiRecommendAdopsi = async (adp, action) => {
+    if (actionLoading[adp.id]) return;
+    setActionLoading(prev => ({ ...prev, [adp.id]: true }));
+    try {
+      if (adp.rawId) {
+        await pantiService.recommendAdoption(adp.rawId, action);
+      }
+      setPantiAdoptions(prev => prev.map(a => a.id === adp.id ? { ...a, status: action === 'tolak' ? 'Ditolak' : 'Disetujui / Rekomendasi Terbit' } : a));
+      showToast(`Permohonan ${adp.id} berhasil ${action === 'tolak' ? 'ditolak' : 'diverifikasi panti & diteruskan ke Dinsos PIPA'}!`);
+      if (action !== 'tolak') triggerConfetti();
+    } catch (err) {
+      showToast(err.friendlyMessage || 'Gagal memproses permohonan adopsi panti');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [adp.id]: false }));
+    }
+  };
+
+  const handleEskalasiReport = async (id) => {
+    const r = lostChildReports.find(x => x.id === id);
+    if (r?.rawId) {
+      try {
+        await pengaduanService.updatePengaduanStatus(r.rawId, 'diproses');
+      } catch (err) {
+        console.warn('Eskalasi report err:', err);
+      }
+    }
+    setLostChildReports(prev => prev.map(rep => rep.id === id ? { ...rep, status: 'Eskalasi TRC & Kepolisian' } : rep));
     showToast(`Kasus ${id} telah DIESKALASI ke Tim TRC Dinsos & Polsek setempat!`);
+  };
+
+  const handleResolveReport = async (id) => {
+    const r = lostChildReports.find(x => x.id === id);
+    if (actionLoading[id]) return;
+    setActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      if (r?.rawId) {
+        await pengaduanService.updatePengaduanStatus(r.rawId, 'selesai');
+      }
+      setLostChildReports(prev => prev.map(rep => rep.id === id ? { ...rep, status: 'Selesai / Ditangani' } : rep));
+      showToast(`Kasus ${id} telah ditandai SELESAI.`);
+      triggerConfetti();
+    } catch (err) {
+      showToast(err.friendlyMessage || 'Gagal menyelesaikan pengaduan');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }));
+    }
   };
 
   // Handlers for Admin Panti
@@ -1526,14 +1692,25 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
                             <Bot size={16} /> Periksa Berkas dengan AI
                           </button>
 
-                          {!app.status.includes('Disetujui') && (
-                            <button
-                              onClick={() => handleApproveAdopsi(app.id)}
-                              className="btn btn-primary"
-                              style={{ width: '100%', borderRadius: '8px', fontSize: '0.825rem', padding: '0.6rem' }}
-                            >
-                              <CheckCircle2 size={16} /> Sahkan SK Pengangkatan Anak (Sidang PIPA)
-                            </button>
+                          {!app.status.includes('Disetujui') && !app.status.includes('Ditolak') && (
+                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                              <button
+                                onClick={() => handleApproveAdopsi(app.id)}
+                                disabled={actionLoading[app.id]}
+                                className="btn btn-primary"
+                                style={{ flex: 1, borderRadius: '8px', fontSize: '0.8rem', padding: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                              >
+                                {actionLoading[app.id] ? <RefreshCw size={14} className="spin" /> : <CheckCircle2 size={16} />}
+                                <span>Sahkan SK (PIPA)</span>
+                              </button>
+                              <button
+                                onClick={() => handleRejectAdopsi(app.id)}
+                                disabled={actionLoading[app.id]}
+                                style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.8rem', padding: '0.6rem 0.85rem', fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                Tolak
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1567,18 +1744,28 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
                           <p style={{ fontSize: '0.825rem', color: '#475569', margin: '0 0 0.35rem 0' }}>
                             Pelapor: <strong>{report.reporter}</strong> • Lokasi Hilang: <strong>{report.location}</strong> ({report.date})
                           </p>
-                          <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 700 }}>
+                          <span style={{ fontSize: '0.75rem', color: report.status.includes('Selesai') ? '#15803d' : '#0284c7', fontWeight: 700 }}>
                             Status Penanganan: {report.status} ({report.officer})
                           </span>
                         </div>
 
                         {!report.status.includes('Selesai') && (
-                          <button
-                            onClick={() => handleEskalasiReport(report.id)}
-                            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '0.55rem 1rem', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                          >
-                            <ShieldAlert size={16} /> Eskalasi Ke TRC / Kepolisian
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              onClick={() => handleEskalasiReport(report.id)}
+                              style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '0.55rem 1rem', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                              <ShieldAlert size={16} /> Eskalasi Ke TRC / Kepolisian
+                            </button>
+                            <button
+                              onClick={() => handleResolveReport(report.id)}
+                              disabled={actionLoading[report.id]}
+                              style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '0.55rem 1rem', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                              {actionLoading[report.id] ? <RefreshCw size={14} className="spin" /> : <CheckCircle2 size={16} />}
+                              <span>Tandai Selesai</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -1589,16 +1776,108 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
               {/* MODULE 4: MONITORING & TRANSPARANSI DONASI */}
               {superAdminTab === 'audit_donasi' && (
                 <div>
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0b1f5c', margin: 0 }}>
-                      4. Audit Donasi Daerah &amp; Matriks Kebutuhan Panti
-                    </h2>
-                    <p style={{ fontSize: '0.875rem', color: '#64748b', margin: 0 }}>
-                      Rekapitulasi transparansi bantuan publik ke seluruh LKSA terdaftar di wilayah Kabupaten.
-                    </p>
+                  <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0b1f5c', margin: 0 }}>
+                        4. Audit Donasi Daerah &amp; Matriks Kebutuhan Panti
+                      </h2>
+                      <p style={{ fontSize: '0.875rem', color: '#64748b', margin: 0 }}>
+                        Rekapitulasi transparansi bantuan publik ke seluruh LKSA terdaftar di wilayah Kabupaten.
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '0.35rem 0.85rem', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 800 }}>
+                        {adminDonations.filter(d => d.status === 'terverifikasi').length} Donasi Terverifikasi
+                      </span>
+                      <span style={{ background: '#fef3c7', color: '#b45309', padding: '0.35rem 0.85rem', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 800 }}>
+                        {adminDonations.filter(d => d.status === 'menunggu').length} Menunggu Persetujuan
+                      </span>
+                    </div>
                   </div>
 
+                  {/* Real Time Incoming Donations Table */}
+                  <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0b1f5c', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Wallet size={20} color="#1d4ed8" />
+                      <span>Daftar Transaksi Donasi Masuk (Perlu Verifikasi &amp; Approval)</span>
+                    </h3>
+
+                    {adminDonations.length === 0 ? (
+                      <p style={{ color: '#64748b', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
+                        Belum ada antrean donasi baru yang masuk dari masyarakat.
+                      </p>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                              <th style={{ padding: '0.75rem' }}>ID &amp; Tanggal</th>
+                              <th style={{ padding: '0.75rem' }}>Donatur</th>
+                              <th style={{ padding: '0.75rem' }}>Panti Tujuan</th>
+                              <th style={{ padding: '0.75rem' }}>Jenis &amp; Jumlah / Paket</th>
+                              <th style={{ padding: '0.75rem' }}>Status</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'right' }}>Aksi Approval</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminDonations.map((d) => (
+                              <tr key={d.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '0.75rem' }}>
+                                  <strong style={{ color: '#0b1f5c', display: 'block' }}>{d.id}</strong>
+                                  <span style={{ fontSize: '0.725rem', color: '#64748b' }}>{d.date}</span>
+                                </td>
+                                <td style={{ padding: '0.75rem' }}>{d.donor}</td>
+                                <td style={{ padding: '0.75rem', fontWeight: 600 }}>{d.panti}</td>
+                                <td style={{ padding: '0.75rem', color: d.jenis === 'uang' ? '#15803d' : '#0284c7', fontWeight: 700 }}>
+                                  {d.amount}
+                                </td>
+                                <td style={{ padding: '0.75rem' }}>
+                                  <span style={{
+                                    background: d.status === 'terverifikasi' ? '#dcfce7' : d.status === 'ditolak' ? '#fee2e2' : '#fef3c7',
+                                    color: d.status === 'terverifikasi' ? '#15803d' : d.status === 'ditolak' ? '#dc2626' : '#b45309',
+                                    padding: '0.2rem 0.55rem',
+                                    borderRadius: '50px',
+                                    fontSize: '0.725rem',
+                                    fontWeight: 800
+                                  }}>
+                                    {d.status === 'terverifikasi' ? 'Terverifikasi' : d.status === 'ditolak' ? 'Ditolak' : 'Menunggu'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                                  {d.status === 'menunggu' ? (
+                                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                                      <button
+                                        onClick={() => handleVerifyDonationAdmin(d.rawId, 'terverifikasi')}
+                                        disabled={actionLoading[d.rawId]}
+                                        style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.35rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                      >
+                                        {actionLoading[d.rawId] ? '...' : '✔ Setujui'}
+                                      </button>
+                                      <button
+                                        onClick={() => handleVerifyDonationAdmin(d.rawId, 'ditolak')}
+                                        disabled={actionLoading[d.rawId]}
+                                        style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                      >
+                                        Tolak
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Selesai Diproses</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Regional Aggregation Table */}
                   <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0b1f5c', margin: '0 0 1rem 0' }}>
+                      Ringkasan Kebutuhan &amp; Logistik Panti se-Kabupaten
+                    </h3>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                       <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
@@ -1817,17 +2096,49 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
                     <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
                       <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0b1f5c', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Wallet size={20} color="#1d4ed8" />
-                        <span>Rekapitulasi Donasi Uang Masuk</span>
+                        <span>Rekapitulasi Donasi Masuk (Uang &amp; Logistik)</span>
                       </h3>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {pantiCashIncome.map((cash) => (
-                          <div key={cash.id} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '0.75rem 0.85rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div key={cash.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.85rem 1rem', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                             <div>
-                              <strong style={{ fontSize: '0.9rem', color: '#1d4ed8', display: 'block' }}>{cash.amount}</strong>
+                              <strong style={{ fontSize: '0.925rem', color: '#1d4ed8', display: 'block' }}>{cash.amount}</strong>
                               <span style={{ fontSize: '0.75rem', color: '#475569' }}>{cash.donor} • {cash.program}</span>
+                              <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginTop: '2px' }}>Tanggal: {cash.date}</span>
                             </div>
-                            <span style={{ fontSize: '0.725rem', color: '#64748b' }}>{cash.date}</span>
+                            
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{
+                                background: cash.status === 'terverifikasi' ? '#dcfce7' : cash.status === 'ditolak' ? '#fee2e2' : '#fef3c7',
+                                color: cash.status === 'terverifikasi' ? '#15803d' : cash.status === 'ditolak' ? '#dc2626' : '#b45309',
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '50px',
+                                fontSize: '0.7rem',
+                                fontWeight: 800
+                              }}>
+                                {cash.status === 'terverifikasi' ? 'Terverifikasi' : cash.status === 'ditolak' ? 'Ditolak' : 'Menunggu'}
+                              </span>
+
+                              {cash.status === 'menunggu' && cash.rawId && (
+                                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                  <button
+                                    onClick={() => handleVerifyDonationPanti(cash.rawId, 'terverifikasi')}
+                                    disabled={actionLoading[cash.rawId]}
+                                    style={{ background: '#16a34a', color: '#ffffff', border: 'none', padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                  >
+                                    {actionLoading[cash.rawId] ? '...' : '✔ Terima'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleVerifyDonationPanti(cash.rawId, 'ditolak')}
+                                    disabled={actionLoading[cash.rawId]}
+                                    style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '0.35rem 0.55rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                  >
+                                    Tolak
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1879,15 +2190,39 @@ export default function DashboardUtama({ onSwitchToLanding, onLogout, currentUse
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {adopsiApplications.map((adp) => (
-                      <div key={adp.id} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {(pantiAdoptions.length > 0 ? pantiAdoptions : adopsiApplications).map((adp) => (
+                      <div key={adp.id} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                         <div>
                           <strong style={{ fontSize: '1.05rem', color: '#0b1f5c', display: 'block' }}>Pemohon: {adp.applicant}</strong>
                           <span style={{ fontSize: '0.825rem', color: '#475569' }}>Anak Diadopsi: <strong>{adp.targetChild}</strong></span>
+                          <span style={{ fontSize: '0.75rem', color: adp.status?.includes('Disetujui') ? '#15803d' : '#d97706', display: 'block', marginTop: '2px', fontWeight: 700 }}>
+                            Status: {adp.status}
+                          </span>
                         </div>
-                        <button onClick={() => showToast(`Permohonan ${adp.id} telah diverifikasi panti & diteruskan ke Sidang PIPA Dinsos!`)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '50px', fontSize: '0.775rem', fontWeight: 800, cursor: 'pointer' }}>
-                          ✔ Verifikasi &amp; Teruskan Ke Dinsos PIPA
-                        </button>
+
+                        {!adp.status?.includes('Disetujui') && !adp.status?.includes('Ditolak') ? (
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              onClick={() => handlePantiRecommendAdopsi(adp, 'rekomendasikan')}
+                              disabled={actionLoading[adp.id]}
+                              style={{ background: '#d97706', color: '#fff', border: 'none', padding: '0.55rem 1rem', borderRadius: '50px', fontSize: '0.775rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                              {actionLoading[adp.id] ? <RefreshCw size={13} className="spin" /> : null}
+                              <span>✔ Verifikasi &amp; Teruskan Ke Dinsos PIPA</span>
+                            </button>
+                            <button
+                              onClick={() => handlePantiRecommendAdopsi(adp, 'tolak')}
+                              disabled={actionLoading[adp.id]}
+                              style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', padding: '0.55rem 0.85rem', borderRadius: '50px', fontSize: '0.775rem', fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              Tolak
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.775rem', fontWeight: 700, color: '#64748b' }}>
+                            Berkas Telah Diproses
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

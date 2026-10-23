@@ -132,14 +132,24 @@ export const pantiService = {
   },
 
   /**
-   * Mengunggah dokumen file laporan dana panti (PDF/gambar)
+   * Mengambil daftar permohonan adopsi yang masuk ke panti ini
    */
-  async uploadLaporanDana(file) {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await apiClient.post('/api/panti/laporan-dana', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  async getPantiAdoptions() {
+    const response = await apiClient.get('/api/panti/pengajuan-adopsi');
+    return response.data;
+  },
+
+  /**
+   * Memberikan rekomendasi atau verifikasi berkas awal adopsi oleh pengelola panti
+   */
+  async recommendAdoption(adoptionId, action = 'rekomendasikan') {
+    const response = await apiClient.patch(
+      `/api/panti/pengajuan-adopsi/${adoptionId}/rekomendasi`,
+      null,
+      {
+        params: { action },
+      }
+    );
     return response.data;
   },
 };

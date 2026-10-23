@@ -136,6 +136,9 @@ export default function HalamanDonasiView({
           jumlah_nominal: nominal,
           bukti_transfer: 'storage/bukti_transfer/transfer_sample.jpg'
         });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('halokids:data_updated', { detail: { type: 'donasi' } }));
+        }
       } catch (err) {
         console.warn('API donasi uang fallback:', err);
       } finally {
@@ -157,6 +160,9 @@ export default function HalamanDonasiView({
         jumlah_nominal: nominal,
         bukti_transfer: 'storage/bukti_transfer/transfer_sample.jpg'
       });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('halokids:data_updated', { detail: { type: 'donasi' } }));
+      }
     } catch (err) {
       console.warn('API donasi QRIS fallback:', err);
     } finally {
@@ -206,6 +212,9 @@ export default function HalamanDonasiView({
         satuan_barang: 'Paket Logistik',
         estimasi_waktu_antar: estimasiTanggal || new Date().toISOString().slice(0, 10)
       });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('halokids:data_updated', { detail: { type: 'donasi' } }));
+      }
     } catch (err) {
       console.warn('API donasi barang fallback:', err);
     } finally {

@@ -118,6 +118,9 @@ export default function FormulirPengaduanView({
 
       const ticketCode = response.kode_tiket || response.ticket_code;
       setSubmittedTicket(ticketCode);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('halokids:data_updated', { detail: { type: 'pengaduan' } }));
+      }
       try {
         confetti({
           particleCount: 100,

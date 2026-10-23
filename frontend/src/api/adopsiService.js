@@ -34,6 +34,10 @@ export const adopsiService = {
     return response.data;
   },
 
+  async uploadKtpDanKk(ktpFile, kkFile) {
+    return this.uploadKtpKk(ktpFile, kkFile);
+  },
+
   /**
    * Unggah 4 berkas awal COTA (Akta kelahiran, Buku nikah, SKCK, Surat Sehat)
    */

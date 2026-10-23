@@ -28,6 +28,36 @@ import {
  */
 export const DEFAULT_ACCOUNTS = [
   {
+    name: 'Mutiara Dewanda',
+    email: 'mutiara@gmail.com',
+    password: '12345678',
+    phone: '0812-3456-7890',
+    role: 'User Publik',
+    roleCode: 'masyarakat',
+    roleLabel: 'Masyarakat / Warga Umum',
+    nip: 'Masyarakat Terverifikasi'
+  },
+  {
+    name: 'Mutiara Dewanda',
+    email: 'mutiara@panti.or.id',
+    password: '12345678',
+    phone: '0813-8877-6655',
+    role: 'Admin Panti',
+    roleCode: 'pengelola panti',
+    roleLabel: 'Pengelola Panti Asuhan / LKSA',
+    nip: 'Pengurus Resmi Lembaga LKSA'
+  },
+  {
+    name: 'Mutiara Dewanda',
+    email: 'mutiara@dinsos.go.id',
+    password: '12345678',
+    phone: '0811-2233-4455',
+    role: 'Super Admin',
+    roleCode: 'admin',
+    roleLabel: 'Dinas Sosial (Super Admin)',
+    nip: 'Dinas Sosial Kabupaten (Super Admin)'
+  },
+  {
     name: 'Ahmad Rifai',
     email: 'ahmad@gmail.com',
     password: '123456',

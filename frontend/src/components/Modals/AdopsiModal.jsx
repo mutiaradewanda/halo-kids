@@ -189,20 +189,36 @@ export default function AdopsiModal({ isOpen, onClose }) {
 
     try {
       // Hubungkan ke endpoint POST /api/masyarakat/pengajuan-adopsi
+      const birthYear = new Date().getFullYear() - (parseInt(formData.usiaSuami || '35', 10) || 35);
+      const marriageYear = new Date().getFullYear() - (lamaMenikah || 6);
+
       const payload = {
         nik_pemohon: formData.nikSuami || '3201010000000001',
         nama_pemohon: `${formData.namaSuami} & ${formData.namaIstri}`,
+        tanggal_lahir_pemohon: `${birthYear}-06-15`,
+        tanggal_pernikahan: `${marriageYear}-08-20`,
         nomor_kontak: formData.noWa,
         alamat: `${formData.alamat}, ${formData.kecamatan}`,
         panti_id: 1,
         status_pernikahan: 'menikah',
         lama_menikah_tahun: lamaMenikah,
         penghasilan_bulanan: 15000000,
-        alasan_adopsi: `Permohonan resmi pengangkatan anak melalui HaloKids Dinsos untuk ${formData.pantiTujuan}`
+        alasan_adopsi: `Permohonan resmi pengangkatan anak melalui HaloKids Dinsos untuk ${formData.pantiTujuan}`,
+        dokumen_ktp: 'storage/ktp/ktp_sample.jpg',
+        dokumen_kk: 'storage/kk/kk_sample.jpg',
+        dokumen_pendukung: {
+          akta_kelahiran: 'storage/dokumen_pendukung/akta_kelahiran_default.pdf',
+          buku_nikah: 'storage/dokumen_pendukung/buku_nikah_default.pdf',
+          skck: 'storage/dokumen_pendukung/skck_default.pdf',
+          surat_sehat: 'storage/dokumen_pendukung/surat_sehat_default.pdf'
+        }
       };
       const apiRes = await adopsiService.submitAdopsi(payload);
       if (apiRes?.id) {
         generatedTicket = `PIPA-2024-${String(apiRes.id).padStart(3, '0')}`;
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('halokids:data_updated', { detail: { type: 'adopsi' } }));
       }
     } catch (apiErr) {
       console.warn('Backend COTA submit fallback to demo generated ticket:', apiErr);

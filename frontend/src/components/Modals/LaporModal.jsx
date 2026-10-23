@@ -30,6 +30,9 @@ export default function LaporModal({ isOpen, onClose }) {
         jenis_laporan: formData.jenisKejadian
       });
       setSubmittedTicket(res.kode_tiket);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('halokids:data_updated', { detail: { type: 'pengaduan' } }));
+      }
     } catch {
       const newTicket = 'HK-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.floor(100000 + Math.random() * 900000);
       setSubmittedTicket(newTicket);
